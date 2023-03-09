@@ -25,6 +25,7 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.query.Query ;
 import org.apache.jena.sparql.core.BasicPattern ;
 import org.apache.jena.sparql.core.PathBlock ;
+import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.sparql.core.Var ;
 import org.apache.jena.sparql.expr.Expr ;
 import org.apache.jena.sparql.syntax.* ;
@@ -75,6 +76,11 @@ public class ElementTransformCopyBase implements ElementTransform {
     }
 
     @Override
+    public Quad transform(Quad quad) {
+        return quad;
+    }
+
+    @Override
     public Element transform(ElementFilter el, Expr expr2) {
         if ( !alwaysCopy && el.getExpr() == expr2 )
             return el ;
@@ -120,6 +126,13 @@ public class ElementTransformCopyBase implements ElementTransform {
         if ( !alwaysCopy && el.getOptionalElement() == elt1 )
             return el ;
         return new ElementOptional(elt1) ;
+    }
+
+    @Override
+    public Element transform(ElementLateral el, Element elt1) {
+        if ( !alwaysCopy && el.getLateralElement() == elt1 )
+            return el ;
+        return new ElementLateral(elt1);
     }
 
     @Override

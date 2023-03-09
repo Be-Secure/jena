@@ -19,11 +19,13 @@
 package org.apache.jena.fuseki.main.cmds;
 
 import org.apache.jena.atlas.web.AuthScheme;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.sparql.core.DatasetGraph;
 
-/** Setup details (command line, config file) from command line processing.
- *  This is built by {@link FusekiMain#exec}.
- *  This is processed by {@link FusekiMain#buildServer}.
+/**
+ * Setup details (command line, config file) from command line processing.
+ * This is built by {@link FusekiMain#exec}.
+ * This is processed by {@link FusekiMain#buildServer}.
  */
 class ServerConfig {
     /** Server port. This is the http port when both http and https are active. */
@@ -49,9 +51,13 @@ class ServerConfig {
     public boolean withPing           = false;
     public boolean withStats          = false;
     public boolean withMetrics        = false;
+    public boolean withCompact        = false;
 
     // This is set ...
     public DatasetGraph dsg           = null;
+    /** RDFS dataset - only when dataset is defined on the command line. */
+    public Graph rdfsGraph            = null;
+
     // ... or this.
     public String serverConfig        = null;
 

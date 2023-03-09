@@ -1,10 +1,11 @@
 /*
- *
- * Copyright [2020] Andy Seaborne
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -25,12 +26,11 @@ import javax.servlet.http.HttpServletRequest;
 
 import org.apache.jena.atlas.web.AuthScheme;
 import org.apache.jena.fuseki.auth.Auth;
-import org.apache.jena.fuseki.jetty.JettyLib;
 import org.apache.jena.fuseki.main.FusekiServer;
+import org.apache.jena.fuseki.main.JettySecurityLib;
 import org.apache.jena.fuseki.servlets.FusekiFilter;
 import org.apache.jena.fuseki.system.FusekiLogging;
 import org.apache.jena.rdfconnection.RDFConnection;
-import org.apache.jena.rdfconnection.RDFConnectionFactory;
 import org.apache.jena.sparql.core.DatasetGraphFactory;
 import org.eclipse.jetty.security.SecurityHandler;
 import org.eclipse.jetty.security.UserStore;
@@ -48,8 +48,8 @@ public class ExFusekiMain_1_Servlet_AddFilter
         try {
             FusekiLogging.setLogging();
 
-            UserStore userStore = JettyLib.makeUserStore("u", "p");
-            SecurityHandler sh = JettyLib.makeSecurityHandler("TripleStore",  userStore, AuthScheme.BASIC);
+            UserStore userStore = JettySecurityLib.makeUserStore("u", "p");
+            SecurityHandler sh = JettySecurityLib.makeSecurityHandler("TripleStore",  userStore, AuthScheme.BASIC);
 
             FusekiServer server = FusekiServer.create()
                 .add("/ds", DatasetGraphFactory.createTxnMem())
@@ -62,7 +62,7 @@ public class ExFusekiMain_1_Servlet_AddFilter
 
             // And use it.
             String URL = "http://localhost:3330/ds";
-            try ( RDFConnection conn = RDFConnectionFactory.connectPW(URL, "u", "p") ) {
+            try ( RDFConnection conn = RDFConnection.connectPW(URL, "u", "p") ) {
                 boolean b = conn.queryAsk("ASK{}");
                 System.out.println("ASK="+b);
             }

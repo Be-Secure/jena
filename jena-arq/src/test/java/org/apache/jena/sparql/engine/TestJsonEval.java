@@ -30,8 +30,8 @@ import org.junit.Test;
 public class TestJsonEval {
 
     @Test public void json_eval_01() {
-        test("JSON { 'x' : ?x } WHERE { VALUES ?x { 'X' } }",
-             "[ { 'x' : 'X' } ]");
+        test("JSON { 'x' : ?var1 , 'y' : ?var2 } WHERE { VALUES (?var1 ?var2) { ('X' 'Y') } }",
+             "[ { 'x' : 'X' , 'y' : 'Y' } ]");
     }
 
     @Test public void json_eval_02() {
@@ -66,7 +66,7 @@ public class TestJsonEval {
 
     private void test(String queryString, String jsonExpected) {
         Query query = QueryFactory.create(queryString, Syntax.syntaxARQ);
-        DatasetGraph dsg = new DatasetGraphZero();
+        DatasetGraph dsg = DatasetGraphZero.create();
         Dataset ds = DatasetFactory.wrap(dsg);
         try ( QueryExecution qExec = QueryExecutionFactory.create(query, ds) ) {
             JsonValue jvGot = qExec.execJson() ;

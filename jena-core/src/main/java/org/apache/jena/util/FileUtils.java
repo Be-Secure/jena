@@ -18,15 +18,17 @@
 
 package org.apache.jena.util;
 
+import static org.apache.commons.lang3.StringUtils.startsWithIgnoreCase;
+
 import java.io.* ;
 import java.net.URL ;
 import java.nio.charset.Charset ;
 import java.nio.charset.StandardCharsets ;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.jena.JenaRuntime ;
 import org.apache.jena.irix.IRIs;
 import org.apache.jena.shared.JenaException ;
@@ -252,13 +254,28 @@ public class FileUtils
     /**
      Get the suffix part of a file name or a URL in file-like format.
      */
-    public static String getFilenameExt( String filename)
-    {
-        int iSlash = filename.lastIndexOf( '/' );
-        int iBack = filename.lastIndexOf( '\\' );
-        int iExt = filename.lastIndexOf( '.' );
+    public static String getFilenameExt(String filename) {
+        String pathname = pathname(filename);
+        int iSlash = pathname.lastIndexOf( '/' );
+        int iBack = pathname.lastIndexOf( '\\' );
+        int iExt = pathname.lastIndexOf( '.' );
         if (iBack > iSlash) iSlash = iBack;
-        return iExt > iSlash ? filename.substring( iExt+1 ).toLowerCase() : "";
+        return iExt > iSlash ? pathname.substring( iExt+1 ).toLowerCase() : "";
+    }
+
+    /** Prepare the filename.
+     *
+     * If the filename is a URL, and it has a query string, drop the query string.
+     * <p>
+     * Sometimes used for HTTP request to provide extra information.
+     * <a href="https://github.com/apache/jena/issues/1668">apache/jena/issues/1668</a>
+     * </p>
+     *
+     */
+    private static String pathname(String filename) {
+        if ( !startsWithIgnoreCase(filename, "http:") && !startsWithIgnoreCase(filename, "https:") )
+            return filename;
+        return StringUtils.substringBefore(filename, "?");
     }
 
     /**
@@ -270,7 +287,7 @@ public class FileUtils
      @param suffix the suffix for File.createTempFile
      @return the temporary File
      */
-    public static  File tempFileName( String prefix, String suffix )
+    public static File tempFileName( String prefix, String suffix )
     {
         File result = new File( getTempDirectory(), prefix + randomNumber() + suffix );
         if (result.exists()) return tempFileName( prefix, suffix );
@@ -363,7 +380,7 @@ public class FileUtils
      */
 
     public static String readWholeFileAsUTF8(String filename) throws IOException {
-        Path path = Paths.get(filename);
+        Path path = Path.of(filename);
         byte b[] = Files.readAllBytes(path);
         return new String(b, utf8);
     }

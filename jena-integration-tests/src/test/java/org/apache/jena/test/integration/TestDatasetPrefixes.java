@@ -50,12 +50,11 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 // Tests go simple -> complex
-// Does not matter ass to their execution, it does help pinpoint what has broken.
+// Does not matter as to their execution, it does help pinpoint what has broken.
 /**
  * Test of dataset prefixes.
  * See {@code AbstractTestPrefixMap} for tests of prefix maps in general.
  */
-
 
 @FixMethodOrder(MethodSorters.JVM)
 @RunWith(Parameterized.class)

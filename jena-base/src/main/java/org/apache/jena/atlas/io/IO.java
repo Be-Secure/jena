@@ -30,6 +30,7 @@ import java.util.zip.GZIPOutputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.compress.compressors.snappy.SnappyCompressorInputStream;
+import org.apache.commons.io.IOUtils;
 import org.apache.jena.atlas.RuntimeIOException;
 import org.apache.jena.atlas.lib.IRILib;
 import org.apache.jena.atlas.lib.StrUtils;
@@ -39,15 +40,12 @@ public class IO
     public static final int EOF = -1;
     public static final int UNSET = -2;
 
-    // Buffer size.  Larger than Java's default.
-    private static final int BUFFER_SIZE = 128*1024;
-
-    private static Charset utf8  = StandardCharsets.UTF_8;
-    private static Charset ascii = StandardCharsets.US_ASCII;
-
     /** Open an input stream to a file.
+     * <p>
      * If the filename is null or "-", return System.in
      * If the filename ends in .gz, wrap in  GZIPInputStream
+     * <p>
+     * Throws {@link RuntimeIOException} on failure to open.
      */
     static public InputStream openFile(String filename) {
         try { return openFileEx(filename); }
@@ -60,12 +58,12 @@ public class IO
      * If using this {@code InputStream} with an {@code InputStreamReader}
      * (e.g. to get UTF-8), there is no need to buffer the {@code InputStream}.
      * Instead, buffer the {@code Reader}.
+     * <p>
+     * Throws {@link RuntimeIOException} on failure to open.
      */
     static public InputStream openFileBuffered(String filename) {
-        try {
-            InputStream in = openFileEx(filename);
-            return new BufferedInputStream(in, BUFFER_SIZE);
-        } catch (IOException ex) { IO.exception(ex); return null; }
+        InputStream in = openFile(filename);
+        return ensureBuffered(in);
     }
 
     private static final String ext_gz = "gz";
@@ -75,6 +73,7 @@ public class IO
     /** Open an input stream to a file; do not mask IOExceptions.
      * If the filename is null or "-", return System.in
      * If the filename ends in .gz, wrap in GZIPInputStream
+     * If the filename ends in .bz2, wrap in BZip2CompressorInputStream
      * @param filename
      * @throws FileNotFoundException
      * @throws IOException
@@ -89,11 +88,31 @@ public class IO
         }
         InputStream in = new FileInputStream(filename);
         String ext = getExtension(filename);
+
+        // Input is a file stream.
+        // https://commons.apache.org/proper/commons-compress/examples.html#Buffering :
+        // """
+        // The stream classes all wrap around streams provided by the calling
+        // code and they work on them directly without any additional
+        // buffering. On the other hand most of them will benefit from
+        // buffering so it is highly recommended that users wrap their stream
+        // in Buffered(In|Out)putStreams before using the Commons Compress
+        // API.
+        // """
+        // GZip and Snappy have internal buffering.
+        // BZip2 does not.
         switch ( ext ) {
-            case "":        return in;
-            case ext_gz:    return new GZIPInputStream(in);
-            case ext_bz2:   return new BZip2CompressorInputStream(in);
-            case ext_sz:    return new SnappyCompressorInputStream(in);
+            case "":
+                return in;
+            case ext_gz:
+                // Makes a small improvement (<5%) to use 8K.
+                return new GZIPInputStream(in, 8*1024);
+            case ext_bz2:
+                // Make a huge improvement. x10 faster.
+                in = IO.ensureBuffered(in);
+                return new BZip2CompressorInputStream(in, true);
+            case ext_sz:
+                return new SnappyCompressorInputStream(in);
         }
         return in;
     }
@@ -165,13 +184,17 @@ public class IO
      * If the filename is null or "-", use System.in
      * If the filename ends in .gz, use GZIPInputStream
      */
-    static public Reader openFileUTF8(String filename)  { return openFileReader(filename, utf8); }
+    static public Reader openFileUTF8(String filename) {
+        return openFileReader(filename, StandardCharsets.UTF_8);
+    }
 
     /** Open an ASCII Reader for a file.
      * If the filename is null or "-", use System.in
      * If the filename ends in .gz, use GZIPInputStream
      */
-    static public Reader openFileASCII(String filename)  { return openFileReader(filename, ascii); }
+    static public Reader openFileASCII(String filename) {
+        return openFileReader(filename, StandardCharsets.US_ASCII);
+    }
 
     private static Reader openFileReader(String filename, Charset charset)
     {
@@ -180,39 +203,42 @@ public class IO
     }
 
     /** Create an unbuffered reader that uses UTF-8 encoding */
-    static public Reader asUTF8(InputStream in)
-    {
-        return new InputStreamReader(in, utf8.newDecoder());
+    static public Reader asUTF8(InputStream in) {
+        return new InputStreamReader(in, StandardCharsets.UTF_8);
     }
 
     /** Create a unbuffered reader that uses ASCII encoding */
-    static public Reader asASCII(InputStream in)
-    {
-        return new InputStreamReader(in, ascii.newDecoder());
+    static public Reader asASCII(InputStream in) {
+        return new InputStreamReader(in, StandardCharsets.US_ASCII);
     }
 
     /** Create an buffered reader that uses UTF-8 encoding */
     static public BufferedReader asBufferedUTF8(InputStream in) {
-        return new BufferedReader(asUTF8(in));
+        // Always buffered - for readLine.
+        return new BufferedReader(asUTF8(in), BUFSIZE_IN / 2);
     }
 
     /** Create a writer that uses UTF-8 encoding */
     static public Writer asUTF8(OutputStream out) {
-        return new OutputStreamWriter(out, utf8.newEncoder());
+        return new OutputStreamWriter(out, StandardCharsets.UTF_8);
     }
 
     /** Create a writer that uses ASCII encoding */
     static public Writer asASCII(OutputStream out) {
-        return new OutputStreamWriter(out, ascii.newEncoder());
+        return new OutputStreamWriter(out, StandardCharsets.US_ASCII);
     }
 
     /** Create a writer that uses UTF-8 encoding and is buffered. */
     static public Writer asBufferedUTF8(OutputStream out) {
-        Writer w =  new OutputStreamWriter(out, utf8.newEncoder());
-        return new BufferingWriter(w);
+        Writer w =  new OutputStreamWriter(out, StandardCharsets.UTF_8);
+        return ensureBuffered(w);
     }
 
-    /** Open a file for output - may include adding gzip processing. */
+    /**
+     * Open a file for output - may include adding gzip processing.
+     * <p>
+     * Throws {@link RuntimeIOException} on failure to open.
+     */
     static public OutputStream openOutputFile(String filename) {
         try { return openOutputFileEx(filename); }
         catch (IOException ex) { IO.exception(ex); return null; }
@@ -259,7 +285,7 @@ public class IO
     }
 
     public static boolean isEmptyDirectory(String directory) {
-        Path path = Paths.get(directory);
+        Path path = Path.of(directory);
         try(DirectoryStream<Path> dirStream = Files.newDirectoryStream(path)) {
             return !dirStream.iterator().hasNext();
         }
@@ -267,13 +293,13 @@ public class IO
         catch (IOException ex) { IO.exception(ex); return false; }
     }
 
-    public static boolean exists(String directory) {
-        Path path = Paths.get(directory);
+    public static boolean exists(String fsname) {
+        Path path = Path.of(fsname);
         return Files.exists(path);
     }
 
     public static boolean isDirectory(String directory) {
-        Path path = Paths.get(directory);
+        Path path = Path.of(directory);
         return Files.isDirectory(path);
     }
 
@@ -354,8 +380,43 @@ public class IO
         out.flush();
     }
 
+    private static final int BUFSIZE_IN   = 128*1024 ;
+    private static final int BUFSIZE_OUT  = 128*1024; ;
+    private static final int WHOLE_FILE_BUFFER_SIZE = 32*1024;
+
+    public static InputStream ensureBuffered(InputStream input) {
+        if ( input instanceof BufferedInputStream )
+            return input;
+        if ( input instanceof ByteArrayInputStream )
+            return input;
+        return new BufferedInputStream(input, BUFSIZE_IN);
+    }
+
+    public static Reader ensureBuffered(Reader input) {
+        if ( input instanceof BufferedReader )
+            return input;
+        if ( input instanceof StringReader )
+            return input;
+        return new BufferedReader(input, BUFSIZE_IN / 2);
+    }
+
+    public static OutputStream ensureBuffered(OutputStream output) {
+        if ( output instanceof BufferedOutputStream )
+            return output;
+        if ( output instanceof ByteArrayOutputStream )
+            return output;
+        return new BufferedOutputStream(output, BUFSIZE_OUT);
+    }
+
+    public static Writer ensureBuffered(Writer output) {
+        if ( output instanceof BufferedWriter )
+            return output;
+        if ( output instanceof StringWriter )
+            return output;
+        return new BufferedWriter(output, BUFSIZE_OUT / 2);
+    }
+
     public static byte[] readWholeFile(InputStream in) {
-        final int WHOLE_FILE_BUFFER_SIZE = 32*1024;
         try(ByteArrayOutputStream out = new ByteArrayOutputStream(WHOLE_FILE_BUFFER_SIZE)) {
             byte buff[] = new byte[WHOLE_FILE_BUFFER_SIZE];
             while (true) {
@@ -376,7 +437,6 @@ public class IO
      * @param filename
      * @return String
      */
-
     public static String readWholeFileAsUTF8(String filename) {
         try ( InputStream in = new FileInputStream(filename) ) {
             return readWholeFileAsUTF8(in);
@@ -401,13 +461,35 @@ public class IO
         }
     }
 
+    /** Fully reads the next up to maxWidth + 1 characters from the stream and returns them as a string.
+     * If the extra character is read then the apprevMarker in appended to the result in its place.
+     * Closing the stream is the caller's responsibility.
+     */
+    public static String abbreviate(InputStream in, Charset charset, int maxWidth, String abbrevMarker) throws IOException {
+        return abbreviate(new InputStreamReader(in, charset), maxWidth, abbrevMarker);
+    }
+
+    /** Fully reads the next up to maxWidth + 1 characters from the reader and returns them as a string.
+     * If the extra character is read then the apprevMarker in appended to the result in its place.
+     * Closing the stream is the caller's responsibility.
+     */
+    public static String abbreviate(Reader reader, int maxWidth, String abbrevMarker) throws IOException {
+        char[] buffer = new char[maxWidth + 1];
+        int n = IOUtils.read(reader, buffer);
+        StringBuilder sb = new StringBuilder();
+        sb.append(buffer, 0, Math.min(n, maxWidth));
+        if (n > maxWidth) {
+            sb.append(abbrevMarker);
+        }
+        return sb.toString();
+    }
+
     /** Read a whole file as UTF-8
      *
      * @param r
      * @return String The whole file
      * @throws IOException
      */
-
     // Private worker as we are trying to force UTF-8.
     private static String readWholeFileAsUTF8(Reader r) throws IOException {
         final int WHOLE_FILE_BUFFER_SIZE = 32*1024;
@@ -429,7 +511,6 @@ public class IO
      * @param content String to be written
      * @throws IOException
      */
-
     public static void writeStringAsUTF8(String filename, String content) throws IOException {
         try ( OutputStream out = IO.openOutputFileEx(filename) ) {
             writeStringAsUTF8(out, content);
@@ -522,8 +603,27 @@ public class IO
             SKIP_BUFFER = new byte[SKIP_BUFFER_LEN];
         try {
             for(;;) {
-                // Skip does not guarantee to go to end of file.
+                // InputStream.skip does not guarantee to go to end of file.
+                // Actually read it to be sure.
                 long rLen = input.read(SKIP_BUFFER, 0, SKIP_BUFFER_LEN);
+                if (rLen < 0) // EOF
+                    break;
+            }
+        } catch (IOException ex) {}
+    }
+
+    // Do nothing buffer.  Never read from this, it may be corrupt because it is shared.
+    private static int SKIP_BUFFER_LEN_R = 16*1024;
+    private static char[] SKIP_BUFFER_R = null;
+    /** Skip to the end of the Reader, discarding input. */
+    public static void skipToEnd(Reader input) {
+        if ( SKIP_BUFFER_R == null )
+            // No harm in concurrent assignment.
+            SKIP_BUFFER_R = new char[SKIP_BUFFER_LEN_R];
+        try {
+            for(;;) {
+                // Skip does not guarantee to go to end of file.
+                long rLen = input.read(SKIP_BUFFER_R, 0, SKIP_BUFFER_LEN_R);
                 if (rLen < 0) // EOF
                     break;
             }

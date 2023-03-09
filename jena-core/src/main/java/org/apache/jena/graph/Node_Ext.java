@@ -51,6 +51,12 @@ public abstract class Node_Ext<X> extends Node {
         return (X)label;
     }
 
+    @Override
+    public boolean isExt() {
+        return true;
+    }
+
+
     // Only based on label.
     @Override
     public int hashCode() {
@@ -66,6 +72,7 @@ public abstract class Node_Ext<X> extends Node {
             return true;
         if ( obj == null )
             return false;
+        // Class test - makes equality keep apart subclass instances.
         if ( getClass() != obj.getClass() )
             return false;
         Node_Ext<?> other = (Node_Ext<?>)obj;

@@ -48,21 +48,21 @@ public class SPARQL_QueryGeneral extends ServletAction {
     public static class SPARQL_QueryProc extends SPARQLQueryProcessor {
         // In order to use as much of the main SPARQL code as possible,
         // this freestanding ActionProcessor mimics being a dataset service
-        // using an empty, immutable dataset   
+        // using an empty, immutable dataset
 
         final static int MaxTriples = 100 * 1000;
 
         public SPARQL_QueryProc() { super(); }
 
         static private DataService dSrv = emptyDataService();
-        static private DataAccessPoint dap = new DataAccessPoint("SPARQL General", dSrv);
+        static private DataAccessPoint dap = new DataAccessPoint("SPARQL_General", dSrv);
 
         static DataService emptyDataService() {
-            DataService dSrv = new DataService(new DatasetGraphZero());
+            DataService dSrv = DataService.newBuilder(DatasetGraphZero.create()).build();
             dSrv.goActive();
             return dSrv;
-        } 
-        
+        }
+
         @Override
         public void executeLifecycle(HttpAction action) {
             action.setRequest(dap, dSrv);
@@ -85,7 +85,7 @@ public class SPARQL_QueryGeneral extends ServletAction {
             DatasetDescription datasetDesc = SPARQLProtocol.getDatasetDescription(action, query);
             if ( datasetDesc == null ) {
                 //ServletOps.errorBadRequest("No dataset description in protocol request or in the query string");
-                return Pair.create(new DatasetGraphZero(), query);
+                return Pair.create(DatasetGraphZero.create(), query);
             }
 
             // These will have been taken care of by the "getDatasetDescription"

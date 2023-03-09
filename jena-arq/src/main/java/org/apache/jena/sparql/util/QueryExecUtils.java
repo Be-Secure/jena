@@ -29,7 +29,6 @@ import org.apache.jena.rdf.model.Model ;
 import org.apache.jena.rdf.model.RDFNode ;
 import org.apache.jena.riot.Lang ;
 import org.apache.jena.riot.RDFDataMgr ;
-import org.apache.jena.riot.resultset.rw.ResultsWriter;
 import org.apache.jena.shared.PrefixMapping ;
 import org.apache.jena.shared.impl.PrefixMappingImpl ;
 import org.apache.jena.sparql.ARQConstants ;
@@ -42,8 +41,12 @@ import org.apache.jena.sparql.core.DatasetGraph ;
 import org.apache.jena.sparql.core.Prologue ;
 import org.apache.jena.sparql.core.Var ;
 import org.apache.jena.sparql.engine.QueryIterator ;
+import org.apache.jena.sparql.engine.ResultSetStream;
+import org.apache.jena.sparql.exec.QueryExec;
+import org.apache.jena.sparql.exec.QueryExecutionAdapter;
 import org.apache.jena.sparql.resultset.RDFOutput ;
 import org.apache.jena.sparql.resultset.ResultsFormat ;
+import org.apache.jena.sparql.resultset.ResultsWriter;
 
 /** Some utilities for query processing. */
 public class QueryExecUtils {
@@ -59,6 +62,28 @@ public class QueryExecUtils {
     }
     protected static Prologue      dftPrologue     = new Prologue(globalPrefixMap) ;
 
+    public static void exec(Query query, DatasetGraph dsg) {
+        QueryExec qExec = QueryExec.dataset(dsg).query(query).build();
+        exec(qExec);
+    }
+
+    public static void exec(QueryExec queryExec) {
+        exec(queryExec.getQuery(), queryExec) ;
+    }
+
+    public static void exec(Prologue prologue, QueryExec queryExec) {
+        exec(prologue, queryExec, ResultsFormat.FMT_TEXT) ;
+    }
+
+    public static void exec(Prologue prologue, QueryExec queryExec, ResultsFormat outputFormat) {
+        exec(prologue, queryExec, outputFormat, System.out);
+    }
+
+    public static void exec(Prologue prologue, QueryExec queryExec, ResultsFormat outputFormat, PrintStream output) {
+        QueryExecution queryExecution = QueryExecutionAdapter.adapt(queryExec);
+        executeQuery(prologue, queryExecution, outputFormat, output);
+    }
+
     public static void executeQuery(QueryExecution queryExecution) {
         executeQuery(null, queryExecution) ;
     }
@@ -70,7 +95,7 @@ public class QueryExecUtils {
     public static void executeQuery(Prologue prologue, QueryExecution queryExecution, ResultsFormat outputFormat) {
         executeQuery(prologue, queryExecution, outputFormat, System.out);
     }
-    
+
     public static void executeQuery(Prologue prologue, QueryExecution queryExecution, ResultsFormat outputFormat, PrintStream output) {
         Query query = queryExecution.getQuery() ;
         if ( prologue == null && query != null )
@@ -102,19 +127,19 @@ public class QueryExecUtils {
     public static void execute(Op op, DatasetGraph dsg, ResultsFormat outputFormat) {
         execute(op, dsg, outputFormat, System.out);
     }
-        
+
     public static void execute(Op op, DatasetGraph dsg, ResultsFormat outputFormat, PrintStream output) {
         QueryIterator qIter = Algebra.exec(op, dsg) ;
 
-        List<String> vars = null ;
+        List<Var> vars = null ;
         if ( op instanceof OpProject )
-            vars = Var.varNames(((OpProject)op).getVars()) ;
+            vars = ((OpProject)op).getVars() ;
         else
             // The variables defined in patterns (not Filters, nor NOT EXISTS,
             // nor ORDER BY)
-            vars = Var.varNames(OpVars.visibleVars(op)) ;
+            vars = new ArrayList<>(OpVars.visibleVars(op)) ;
 
-        ResultSet results = ResultSetFactory.create(qIter, vars) ;
+        ResultSet results = ResultSetStream.create(vars, qIter) ;
         outputResultSet(results, null, outputFormat, output) ;
         output.flush();
     }
@@ -265,7 +290,7 @@ public class QueryExecUtils {
         System.err.println("Unknown format: " + outputFormat) ;
     }
 
-    
+
     private static void doAskQuery(Prologue prologue, QueryExecution qe, ResultsFormat outputFormat, PrintStream output) {
         boolean b = qe.execAsk() ;
 
@@ -371,7 +396,7 @@ public class QueryExecUtils {
         }
         return r ;
     }
-    
+
     /**
      * Execute, returning all matches, which may be zero.
      */

@@ -29,7 +29,7 @@ import org.junit.runners.Suite ;
      TestIRI.class
     , TestLang.class
     , TestBlankNodeAllocator.class
-    , TestNodeAllocator.class       // Older tests 
+    , TestNodeAllocator.class       // Older tests
     , TestLabelToNode.class         // Newer tests
     , TestNodeToLabel.class
     , TestTurtleTerms.class
@@ -38,19 +38,19 @@ import org.junit.runners.Suite ;
     , TestLangTurtle.class
     , TestLangTrig.class
     , TestLangRdfJson.class
+    , TestRDFXML_ReaderProperties.class
     , TestTriXReader.class
     , TestTriXBad.class
+    // Protobuf is done in the "protobuf" package
     // Thrift is done in the "thrift" package
     , TestParserFactory.class
     , TestPipedRDFIterators.class
     , TestCollectorStream.class
-
 })
-
 
 public class TS_Lang
 {
-    @BeforeClass public static void beforeClass()   { BaseTest2.setTestLogging() ; } 
+    @BeforeClass public static void beforeClass()   { BaseTest2.setTestLogging() ; }
     @AfterClass public static void afterClass()     { BaseTest2.unsetTestLogging() ; }
 }
 

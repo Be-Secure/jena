@@ -46,13 +46,12 @@ public class ShaclPlainValidator implements ShaclValidator {
      */
     @Override
     public boolean conforms(Shapes shapes, Graph data) {
-        // XXX Fast version of "conforms"
         return validate(shapes, data).conforms();
     }
 
     /**
      * Does the data conform to the shapes? This operation only checks whether the
-     * data is conformant or not - it does not genberate a complete report.
+     * data is conformant or not - it does not generate a complete report.
      *
      * @see #validate(Graph, Graph)
      */
@@ -63,7 +62,7 @@ public class ShaclPlainValidator implements ShaclValidator {
 
     /**
      * Does the node within the data conform to the shapes? This operation only
-     * checks the data is conformant or not - it does not genberate a complete
+     * checks the data is conformant or not - it does not generate a complete
      * report.
      *
      * @see #validate(Shapes, Graph, Node)

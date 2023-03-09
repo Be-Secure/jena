@@ -32,7 +32,6 @@ import java.lang.reflect.Method;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 
 import org.apache.commons.lang3.StringUtils;
@@ -44,6 +43,7 @@ import org.apache.jena.atlas.lib.StrUtils;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
 import org.apache.jena.fuseki.Fuseki;
 import org.apache.jena.fuseki.FusekiConfigException;
+import org.apache.jena.fuseki.FusekiException;
 import org.apache.jena.fuseki.auth.Auth;
 import org.apache.jena.fuseki.auth.AuthPolicy;
 import org.apache.jena.fuseki.auth.AuthPolicyList;
@@ -68,51 +68,37 @@ import org.slf4j.Logger;
 
 /** Functions to setup and act on the configuration of a Fuseki server */
 public class FusekiConfig {
-    static { Fuseki.init(); initStandardSetup(); }
-
     private static Logger log = Fuseki.configLog;
 
     // The default setup of a DataService.
-    private static Map<String, Operation> stdRead;
-    private static Map<String, Operation> stdWrite;
+    private static Map<String, Operation> stdRead =
+            Map.of("sparql",   Operation.Query,
+                   "query",    Operation.Query,
+                   "data",     Operation.GSP_R,
+                   "get",      Operation.GSP_R);
 
-    private static Set<Operation> stdDatasetWrite;
-    private static Set<Operation> stdDatasetRead;
+    private static Map<String, Operation> stdWrite =
+            Map.of("sparql",   Operation.Query,
+                   "query",    Operation.Query,
+                   "update",   Operation.Update,
+                   "data",     Operation.GSP_RW,
+                   "get",      Operation.GSP_R,
+                   "patch",    Operation.Patch);
 
-    private static void initStandardSetup() {
-        stdRead = new HashMap<>();
-        stdRead.put("sparql",   Operation.Query);
-        stdRead.put("query",    Operation.Query);
-        stdRead.put("data",     Operation.GSP_R);
-        stdRead.put("get",      Operation.GSP_R);
+    private static Set<Operation> stdDatasetRead =
+            Set.of(Operation.Query,
+                   Operation.GSP_R);
 
-        stdWrite = new HashMap<>();
-        stdWrite.put("sparql",   Operation.Query);
-        stdWrite.put("query",    Operation.Query);
-        stdWrite.put("update",  Operation.Update);
-        stdWrite.put("upload",  Operation.Upload);
-        stdWrite.put("data",    Operation.GSP_RW);
-        stdWrite.put("get",     Operation.GSP_R);
+    private static Set<Operation> stdDatasetWrite =
+            Set.of(Operation.Query,
+                   Operation.Update,
+                   Operation.GSP_RW,
+                   Operation.Patch);
 
-        stdDatasetRead = new HashSet<>();
-        stdDatasetRead.add(Operation.Query);
-        stdDatasetRead.add(Operation.GSP_R);
-
-        stdDatasetWrite = new HashSet<>();
-        stdDatasetWrite.add(Operation.Query);
-        stdDatasetWrite.add(Operation.Update);
-        stdDatasetWrite.add(Operation.GSP_RW);
-    }
-
-    /** Build a DataService starting at Resource svc, with the standard (default) set of services. */
-    public static DataService buildDataServiceStd(DatasetGraph dsg, boolean allowUpdate) {
-        DataService dataService = new DataService(dsg);
-        populateStdServices(dataService, allowUpdate);
-        return dataService;
-    }
+    static { Fuseki.init(); }
 
     /** Convenience operation to populate a {@link DataService} with the conventional default services. */
-    public static void populateStdServices(DataService dataService, boolean allowUpdate) {
+    public static DataService.Builder populateStdServices(DataService.Builder dataServiceBuilder, boolean allowUpdate) {
         Set<Endpoint> endpoints = new HashSet<>();
         if ( allowUpdate ) {
             stdWrite.forEach((name, op) -> accEndpoint(endpoints, op, name));
@@ -125,13 +111,8 @@ public class FusekiConfig {
             if ( FusekiExt.extraOperationServicesRead != null )
                 FusekiExt.extraOperationServicesRead.forEach((name, op) -> accEndpoint(endpoints, op, name));
         }
-        // Add to DataService.
-        endpoints.forEach(dataService::addEndpoint);
-    }
-
-    public static void addServiceEP(DataService dataService, Operation operation, String endpointName) {
-        Endpoint endpoint = Endpoint.create(operation, endpointName, null);
-        dataService.addEndpoint(endpoint);
+        endpoints.forEach(dataServiceBuilder::addEndpoint);
+        return dataServiceBuilder;
     }
 
     public static void addDataService(DataAccessPointRegistry dataAccessPoints, String name, DataService dataService) {
@@ -146,15 +127,15 @@ public class FusekiConfig {
         name = DataAccessPoint.canonical(name);
         if ( dataAccessPoints.isRegistered(name) )
             throw new FusekiConfigException("Data service name already registered: "+name);
-        DataAccessPoint dap = buildDataAccessPoint(name, dsg, withUpdate);
+        DataService dataService = buildDataServiceStd(dsg, withUpdate);
+        DataAccessPoint dap = new DataAccessPoint(name, dataService);
         dataAccessPoints.register(dap);
     }
 
-    private static DataAccessPoint buildDataAccessPoint(String name, DatasetGraph dsg, boolean withUpdate) {
-        // See Builder. DRY.
-        DataService dataService = buildDataServiceStd(dsg, withUpdate);
-        DataAccessPoint dap = new DataAccessPoint(name, dataService);
-        return dap;
+    public static DataService buildDataServiceStd(DatasetGraph dsg, boolean withUpdate) {
+        return DataService.newBuilder(dsg)
+                .withStdServices(withUpdate)
+                .build();
     }
 
     public static void removeDataset(DataAccessPointRegistry dataAccessPoints, String name) {
@@ -341,7 +322,8 @@ public class FusekiConfig {
             QuerySolution soln = rs.next();
             Resource svc = soln.getResource("service");
             DataAccessPoint acc = buildDataAccessPoint(svc, dsDescMap);
-            accessPoints.add(acc);
+            if ( acc != null )
+                accessPoints.add(acc);
         }
         return accessPoints;
     }
@@ -369,7 +351,7 @@ public class FusekiConfig {
 
     /** Read service descriptions in the given directory */
     public static List<DataAccessPoint> readConfigurationDirectory(String dir) {
-        Path pDir = Paths.get(dir).normalize();
+        Path pDir = Path.of(dir).normalize();
         File dirFile = pDir.toFile();
         if ( ! dirFile.exists() ) {
             log.warn("Not found: directory for assembler files for services: '"+dir+"'");
@@ -415,34 +397,40 @@ public class FusekiConfig {
 
         for ( Resource service : services ) {
             DataAccessPoint acc = buildDataAccessPoint(service, dsDescMap);
-            dataServiceRef.add(acc);
+            if ( acc != null )
+                dataServiceRef.add(acc);
         }
     }
 
     /** Build a DataAccessPoint, including DataService, from the description at Resource svc */
     public static DataAccessPoint buildDataAccessPoint(Resource svc, DatasetDescriptionMap dsDescMap) {
-        RDFNode n = BuildLib.getOne(svc, "fu:name");
-        if ( ! n.isLiteral() )
-            throw new FusekiConfigException("Not a literal for access point name: "+FmtUtils.stringForRDFNode(n));
-        Literal object = n.asLiteral();
+        RDFNode n = BuildLib.getOne(svc, FusekiVocab.pServiceName);
+        try {
+            if ( ! n.isLiteral() )
+                throw new FusekiConfigException("Not a literal for access point name: "+FmtUtils.stringForRDFNode(n));
+            Literal object = n.asLiteral();
 
-        if ( object.getDatatype() != null && ! object.getDatatype().equals(XSDDatatype.XSDstring) )
-            Fuseki.configLog.error(format("Service name '%s' is not a string", FmtUtils.stringForRDFNode(object)));
+            if ( object.getDatatype() != null && ! object.getDatatype().equals(XSDDatatype.XSDstring) )
+                Fuseki.configLog.error(format("Service name '%s' is not a string", FmtUtils.stringForRDFNode(object)));
 
-        String name = object.getLexicalForm();
-        name = DataAccessPoint.canonical(name);
-        DataService dataService = buildDataService(svc, dsDescMap);
-        AuthPolicy allowedUsers = allowedUsers(svc);
-        dataService.setAuthPolicy(allowedUsers);
-        DataAccessPoint dataAccess = new DataAccessPoint(name, dataService);
-        return dataAccess;
+            String name = object.getLexicalForm();
+            name = DataAccessPoint.canonical(name);
+            AuthPolicy allowedUsers = allowedUsers(svc);
+            DataService dataService = buildDataService(svc, dsDescMap).setAuthPolicy(allowedUsers).build();
+            DataAccessPoint dataAccess = new DataAccessPoint(name, dataService);
+            return dataAccess;
+        } catch (FusekiException ex) {
+            Fuseki.configLog.error("Skipping: Failed to build service for "+FmtUtils.stringForRDFNode(n));
+            Fuseki.configLog.error("    "+ex.getMessage());
+            return null;
+        }
     }
 
     /** Build a DatasetRef starting at Resource svc, having the services as described by the descriptions. */
-    private static DataService buildDataService(Resource fusekiService, DatasetDescriptionMap dsDescMap) {
-        Resource datasetDesc = ((Resource)BuildLib.getOne(fusekiService, "fu:dataset"));
+    private static DataService.Builder buildDataService(Resource fusekiService, DatasetDescriptionMap dsDescMap) {
+        Resource datasetDesc = (Resource)BuildLib.getOne(fusekiService, FusekiVocab.pDataset);
         Dataset ds = getDataset(datasetDesc, dsDescMap);
-        DataService dataService = new DataService(ds.asDatasetGraph());
+        DataService.Builder dataService = DataService.newBuilder(ds.asDatasetGraph());
         Set<Endpoint> endpoints1 = new HashSet<>();
         Set<Endpoint> endpoints2 = new HashSet<>();
 
@@ -452,7 +440,7 @@ public class FusekiConfig {
         //    fuseki:serviceQuery [ fuseki:name "sparql" ; fuseki:allowedUsers (..) ];
         accEndpointOldStyle(endpoints1, Operation.Query,    fusekiService,  pServiceQueryEP);
         accEndpointOldStyle(endpoints1, Operation.Update,   fusekiService,  pServiceUpdateEP);
-        accEndpointOldStyle(endpoints1, Operation.Upload,   fusekiService,  pServiceUploadEP);
+        //accEndpointOldStyle(endpoints1, Operation.Upload,   fusekiService,  pServiceUploadEP);
         accEndpointOldStyle(endpoints1, Operation.GSP_R,    fusekiService,  pServiceReadGraphStoreEP);
         accEndpointOldStyle(endpoints1, Operation.GSP_RW,   fusekiService,  pServiceReadWriteGraphStoreEP);
 
@@ -484,7 +472,7 @@ public class FusekiConfig {
      *  For each endpoint in "endpoints1", ensure there is an endpoint on the dataset (endpoint name "") itself.
      *  Combine the authentication as "AND" of named endpoints authentication.
      */
-    private static Collection<Endpoint> oldStyleCompat(DataService dataService, Set<Endpoint> endpoints1) {
+    private static Collection<Endpoint> oldStyleCompat(DataService.Builder dataService, Set<Endpoint> endpoints1) {
         Map<Operation, Endpoint> endpoints3 = new HashMap<>();
         endpoints1.forEach(ep->{
            Operation operation = ep.getOperation();
@@ -549,7 +537,7 @@ public class FusekiConfig {
         Operation op = null;
         if ( opResource != null ) {
             if ( ! opResource.isResource() || opResource.isAnon() )
-                throw exception("Not a URI for endpoint operation.", fusekiService, endpoint, pOperation);
+                throw exception("Blank node endpoint operation in service %s", nodeLabel(fusekiService));
             Node opRef = opResource.asNode();
             op = Operation.get(opRef);
         }
@@ -558,13 +546,13 @@ public class FusekiConfig {
         if ( op == null ) {
             RDFNode rImpl = getZeroOrOne(endpoint, pImplementation);
             if ( rImpl == null )
-                throw exception("No fuseki:operation", fusekiService, endpoint, pOperation);
+                throw exception("No implementation for fuseki:operation '%s' in service %s", nodeLabel(opResource), nodeLabel(fusekiService));
             // Global registry. Replace existing registry.
             Pair<Operation, ActionService> x = BuildLib.loadOperationActionService(rImpl);
             Operation op2 = x.getLeft();
             ActionService proc = x.getRight();
             if ( op2 == null )
-                throw exception("No fuseki:operation", fusekiService, endpoint, pOperation);
+                throw exception("Failed to load implementation for fuseki:operation '%s' in service %s", nodeLabel(opResource), nodeLabel(fusekiService));
             op = op2;
             // Using a blank node (!) for the operation means this is safe!
             // OperationRegistry.get().register(op2, proc);
@@ -579,7 +567,7 @@ public class FusekiConfig {
         if ( epNameR == null ) {
 //            // Make required to give "" for dataset, not default to dataset if missing.
 //            throw exception("No service name for endpoint", fusekiService, ep, pServiceName);
-            epName = Endpoint.DatasetEP;
+            epName = Endpoint.DatasetEP.string;
         } else {
             if ( ! epNameR.isLiteral() )
                 throw exception("Not a literal for service name for endpoint", fusekiService, endpoint, pEndpointName);
@@ -594,8 +582,9 @@ public class FusekiConfig {
         //   fuseki:queryLimit
         //   fuseki:unionDefaultGraph
 
-        Endpoint ep = EndpointBuilder.create()
+        Endpoint ep = Endpoint.create()
             .operation(op)
+            // Validates the name.
             .endpointName(epName)
             .authPolicy(authPolicy)
             .context(cxt)
@@ -603,20 +592,10 @@ public class FusekiConfig {
         return ep;
     }
 
-    private static FusekiConfigException exception(String msg, Resource fusekiService, Resource ep, Property property) {
-        throw new FusekiConfigException(msg+": "+nodeLabel(fusekiService)+" fuseki:endpoint "+nodeLabel(ep));
+    private static FusekiConfigException exception(String fmt, Object...args) {
+        String msg = String.format(fmt,  args);
+        throw new FusekiConfigException(msg);
     }
-
-    private static FusekiConfigException exception(String msg, Resource fusekiService, Resource ep, Property property, Throwable th) {
-        if ( th == null )
-            return new FusekiConfigException(msg+": "+nodeLabel(fusekiService)+" fuseki:endpoint "+nodeLabel(ep));
-        else
-            return new FusekiConfigException(msg+": "+nodeLabel(fusekiService)+" fuseki:endpoint "+nodeLabel(ep), th);
-    }
-
-//    private static boolean endpointsContains(Collection<Endpoint> endpoints, Operation operation) {
-//        return endpoints.stream().anyMatch(ep->operation.equals(ep.getOperation()));
-//    }
 
     // Old style.
     //    fuseki:serviceQuery "sparql";
@@ -638,7 +617,10 @@ public class FusekiConfig {
                 Resource r = (Resource)ep;
                 try {
                     // [ fuseki:name ""; fuseki:allowedUsers ( "" "" ) ]
-                    endpointName = r.getProperty(FusekiVocab.pEndpointName).getString();
+                    Statement stmt = r.getProperty(FusekiVocab.pEndpointName);
+                    if ( stmt == null )
+                        throw new FusekiConfigException("Expected property <"+FusekiVocab.pEndpointName+"> with <"+property.getURI()+"> for <"+svc+">");
+                    endpointName = stmt.getString();
                     List<RDFNode> x = GraphUtils.multiValue(r, FusekiVocab.pAllowedUsers);
                     if ( x.size() > 1 )
                         throw new FusekiConfigException("Multiple fuseki:"+FusekiVocab.pAllowedUsers.getLocalName()+" for "+r);
@@ -692,7 +674,6 @@ public class FusekiConfig {
         return ds;
     }
 
-
     // ---- System database
     /** Read the system database */
     public static List<DataAccessPoint> readSystemDatabase(Dataset ds) {
@@ -714,9 +695,6 @@ public class FusekiConfig {
         try {
             ResultSet rs = BuildLib.query(qs, ds);
 
-    //        ResultSetFormatter.out(rs);
-    //        ((ResultSetRewindable)rs).reset();
-
             for (; rs.hasNext(); ) {
                 QuerySolution row = rs.next();
                 Resource s = row.getResource("s");
@@ -729,7 +707,8 @@ public class FusekiConfig {
                 // Rebase the resource of the service description to the containing graph.
                 Resource svc = m.wrapAsResource(s.asNode());
                 DataAccessPoint ref = buildDataAccessPoint(svc, dsDescMap);
-                refs.add(ref);
+                if ( ref != null )
+                    refs.add(ref);
             }
             ds.commit();
             return refs;

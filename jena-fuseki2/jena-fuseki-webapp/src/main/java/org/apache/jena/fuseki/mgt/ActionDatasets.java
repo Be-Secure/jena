@@ -41,6 +41,7 @@ import org.apache.jena.atlas.lib.StrUtils;
 import org.apache.jena.atlas.logging.FmtLog;
 import org.apache.jena.atlas.web.ContentType;
 import org.apache.jena.datatypes.xsd.XSDDatatype;
+import org.apache.jena.dboe.transaction.txn.TransactionException;
 import org.apache.jena.fuseki.build.DatasetDescriptionMap;
 import org.apache.jena.fuseki.build.FusekiConfig;
 import org.apache.jena.fuseki.ctl.ActionContainerItem;
@@ -52,8 +53,8 @@ import org.apache.jena.fuseki.server.ServerConst;
 import org.apache.jena.fuseki.servlets.ActionLib;
 import org.apache.jena.fuseki.servlets.HttpAction;
 import org.apache.jena.fuseki.servlets.ServletOps;
+import org.apache.jena.fuseki.system.DataUploader;
 import org.apache.jena.fuseki.system.FusekiNetLib;
-import org.apache.jena.fuseki.system.Upload;
 import org.apache.jena.fuseki.webapp.FusekiWebapp;
 import org.apache.jena.fuseki.webapp.SystemState;
 import org.apache.jena.graph.Node;
@@ -127,7 +128,7 @@ public class ActionDatasets extends ActionContainerItem {
 
         ContentType ct = ActionLib.getContentType(action);
 
-        boolean hasParams = action.request.getParameterNames().hasMoreElements();
+        boolean hasParams = action.getRequestParameterNames().hasMoreElements();
 
         if ( ct == null && ! hasParams )
             ServletOps.errorBadRequest("Bad request - Content-Type or both parameters dbName and dbType required");
@@ -212,13 +213,18 @@ public class ActionDatasets extends ActionContainerItem {
 
             // Need to be in Resource space at this point.
             DataAccessPoint dataAccessPoint = FusekiConfig.buildDataAccessPoint(subject, registry);
+            if ( dataAccessPoint == null ) {
+                FmtLog.error(action.log, "Failed to build DataAccessPoint: datasetPath = %s; DataAccessPoint name = %s", datasetPath, dataAccessPoint);
+                ServletOps.errorBadRequest("Failed to build DataAccessPoint");
+                return null;
+            }
             dataAccessPoint.getDataService().setEndpointProcessors(action.getOperationRegistry());
             dataAccessPoint.getDataService().goActive();
             if ( ! datasetPath.equals(dataAccessPoint.getName()) )
                 FmtLog.warn(action.log, "Inconsistent names: datasetPath = %s; DataAccessPoint name = %s", datasetPath, dataAccessPoint);
 
             action.getDataAccessPointRegistry().register(dataAccessPoint);
-            action.getResponse().setContentType(WebContent.contentTypeTextPlain);
+            action.setResponseContentType(WebContent.contentTypeTextPlain);
             ServletOps.success(action);
             system.commit();
             committed = true;
@@ -292,7 +298,7 @@ public class ActionDatasets extends ActionContainerItem {
             // If not set explicitly, take from DataAccessPoint
             dSrv = action.getDataAccessPoint().getDataService();
 
-        String s = action.request.getParameter("state");
+        String s = action.getRequestParameter("state");
         if ( s == null || s.isEmpty() )
             ServletOps.errorBadRequest("No state change given");
 
@@ -394,7 +400,11 @@ public class ActionDatasets extends ActionContainerItem {
             boolean isTDB1 = org.apache.jena.tdb.sys.TDBInternal.isTDB1(dataService.getDataset());
             boolean isTDB2 = org.apache.jena.tdb2.sys.TDBInternal.isTDB2(dataService.getDataset());
 
-            dataService.shutdown();
+            // This occasionally fails in tests due to outstanding transactions.
+            // Unclear what's holding the transaction (maybe another test clearing up slowly).
+            try {
+                dataService.shutdown();
+            } catch (/*DBOE*/ TransactionException ex) { }
             // JENA-1481: Really delete files.
             if ( ( isTDB1 || isTDB2 ) ) {
                 // Delete databases created by the UI, or the admin operation, which are
@@ -449,9 +459,9 @@ public class ActionDatasets extends ActionContainerItem {
     }
 
     private static void assemblerFromForm(HttpAction action, StreamRDF dest) {
-        String x = action.getRequest().getQueryString();
-        String dbType = action.getRequest().getParameter(paramDatasetType);
-        String dbName = action.getRequest().getParameter(paramDatasetName);
+        String x = action.getRequestQueryString();
+        String dbType = action.getRequestParameter(paramDatasetType);
+        String dbName = action.getRequestParameter(paramDatasetName);
         if ( StringUtils.isBlank(dbType) || StringUtils.isBlank(dbName) )
             ServletOps.errorBadRequest("Received HTML form.  Both parameters 'dbName' and 'dbType' required");
 
@@ -474,7 +484,7 @@ public class ActionDatasets extends ActionContainerItem {
     }
 
     private static void assemblerFromUpload(HttpAction action, StreamRDF dest) {
-        Upload.fileUploadWorker(action, dest);
+        DataUploader.incomingData(action, dest);
     }
 
     // Persistent state change.
@@ -531,7 +541,7 @@ public class ActionDatasets extends ActionContainerItem {
     // TODO Merge with Upload.incomingData
 
     private static void bodyAsGraph(HttpAction action, StreamRDF dest) {
-        HttpServletRequest request = action.request;
+        HttpServletRequest request = action.getRequest();
         String base = ActionLib.wholeRequestURL(request);
         ContentType ct = FusekiNetLib.getContentType(request);
         Lang lang = RDFLanguages.contentTypeToLang(ct.getContentTypeStr());

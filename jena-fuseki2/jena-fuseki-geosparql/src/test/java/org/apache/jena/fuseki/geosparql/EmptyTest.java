@@ -17,28 +17,20 @@
  */
 package org.apache.jena.fuseki.geosparql;
 
-import com.beust.jcommander.JCommander;
+import static org.junit.Assert.assertEquals;
+
 import java.util.ArrayList;
 import java.util.List;
+
+import com.beust.jcommander.JCommander;
+
 import org.apache.jena.fuseki.geosparql.cli.ArgsConfig;
 import org.apache.jena.geosparql.spatial.SpatialIndexException;
-import org.apache.jena.query.Dataset;
-import org.apache.jena.query.QueryExecution;
-import org.apache.jena.query.QueryExecutionFactory;
-import org.apache.jena.query.QuerySolution;
-import org.apache.jena.query.ResultSet;
+import org.apache.jena.query.*;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
-import org.apache.jena.update.UpdateExecutionFactory;
-import org.apache.jena.update.UpdateFactory;
-import org.apache.jena.update.UpdateProcessor;
-import org.apache.jena.update.UpdateRequest;
-import org.junit.After;
-import org.junit.AfterClass;
-import static org.junit.Assert.assertEquals;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.apache.jena.update.*;
+import org.junit.*;
 
 /**
  *
@@ -53,7 +45,7 @@ public class EmptyTest {
 
     @BeforeClass
     public static void setUpClass() throws DatasetException, SpatialIndexException {
-        String[] args = {"-u"};
+        String[] args = {"-u", "--port", "4049"};
 
         ArgsConfig argsConfig = new ArgsConfig();
         JCommander.newBuilder()
@@ -84,10 +76,8 @@ public class EmptyTest {
                 + "}";
 
         UpdateRequest updateRequest = UpdateFactory.create(update);
-        UpdateProcessor updateProcessor = UpdateExecutionFactory.createRemote(updateRequest, SERVER.getLocalServiceURL());
+        UpdateExecution updateProcessor = UpdateExecution.service(SERVER.getLocalServiceURL()).update(updateRequest).build();
         updateProcessor.execute();
-
-        System.out.println("Server: " + SERVER.getLocalServiceURL());
     }
 
     @AfterClass
@@ -115,7 +105,7 @@ public class EmptyTest {
                 + "    <http://example.org/Geometry#LineStringA> geo:sfCrosses ?obj .\n"
                 + "}ORDER by ?obj";
         List<Resource> result = new ArrayList<>();
-        try (QueryExecution qe = QueryExecutionFactory.sparqlService(SERVER.getLocalServiceURL(), query)) {
+        try (QueryExecution qe = QueryExecution.service(SERVER.getLocalServiceURL()).query(query).build()) {
             ResultSet rs = qe.execSelect();
 
             while (rs.hasNext()) {

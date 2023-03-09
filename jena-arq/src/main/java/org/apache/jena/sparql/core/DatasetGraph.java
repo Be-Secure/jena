@@ -19,7 +19,9 @@
 package org.apache.jena.sparql.core ;
 
 import java.util.Iterator ;
+import java.util.stream.Stream;
 
+import org.apache.jena.atlas.iterator.Iter;
 import org.apache.jena.atlas.lib.Closeable ;
 import org.apache.jena.graph.Graph ;
 import org.apache.jena.graph.Node ;
@@ -67,10 +69,13 @@ public interface DatasetGraph extends Transactional, Closeable
      */
     public boolean containsGraph(Node graphNode) ;
 
-    /** Set the default graph.  Set the active graph if it was null.
-     *  This replaces the contents default graph, not merge data into it.
-     *  Do not assume that the same object is returned by {@link #getDefaultGraph}
+    /**
+     * Set the default graph.
+     * This replaces the contents default graph, not merge data into it.
+     * Do not assume that the same object is returned by {@link #getDefaultGraph}
+     * @deprecated Do not use. To be removed.
      */
+    @Deprecated
     public void setDefaultGraph(Graph g) ;
 
     /**
@@ -99,8 +104,8 @@ public interface DatasetGraph extends Transactional, Closeable
 
     /** Add a quad */
     public void add(Node g, Node s, Node p, Node o) ;
-    
-    /** Add the {@code src} DatasetGraph to this one. */ 
+
+    /** Add the {@code src} DatasetGraph to this one. */
     public default void addAll(DatasetGraph src) {
         src.find().forEachRemaining(this::add);
     }
@@ -112,7 +117,9 @@ public interface DatasetGraph extends Transactional, Closeable
     public void deleteAny(Node g, Node s, Node p, Node o) ;
 
     /** Iterate over all quads in the dataset graph */
-    public Iterator<Quad> find() ;
+    public default Iterator<Quad> find() {
+        return find(Node.ANY, Node.ANY, Node.ANY, Node.ANY);
+    }
 
     /** Find matching quads in the dataset - may include wildcards, Node.ANY or null
      * @see Graph#find(Triple)
@@ -128,6 +135,22 @@ public interface DatasetGraph extends Transactional, Closeable
      * @see Graph#find(Node,Node,Node)
      */
     public Iterator<Quad> findNG(Node g, Node s, Node p , Node o) ;
+
+    /** Returns a {@link Stream} of {@link Quad Quads} matching a pattern.
+     *
+     * @return a stream of quads in this dataset matching the pattern.
+     */
+    public default Stream<Quad> stream(Node g, Node s, Node p, Node o) {
+        return Iter.asStream(find(g, s, p, o));
+    }
+
+    /** Returns a {@link Stream} of {@link Quad Quads} in this dataset.
+     *
+     * @return a stream of quads in this dataset.
+     */
+    public default Stream<Quad> stream() {
+        return stream(Node.ANY, Node.ANY, Node.ANY, Node.ANY);
+    }
 
     /** Test whether the dataset (including default graph) contains a quad - may include wildcards, Node.ANY or null */
     public boolean contains(Node g, Node s, Node p , Node o) ;

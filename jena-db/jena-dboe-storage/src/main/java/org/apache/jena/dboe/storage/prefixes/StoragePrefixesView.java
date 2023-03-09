@@ -1,18 +1,19 @@
 /*
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
- *  See the NOTICE file distributed with this work for additional
- *  information regarding copyright ownership.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.jena.dboe.storage.prefixes;
@@ -26,6 +27,7 @@ import org.apache.jena.atlas.iterator.Iter;
 import org.apache.jena.dboe.storage.StoragePrefixes;
 import org.apache.jena.graph.Node;
 import org.apache.jena.riot.system.PrefixEntry;
+import org.apache.jena.riot.system.Prefixes;
 import org.apache.jena.sparql.core.Quad;
 
 /**
@@ -38,16 +40,16 @@ public class StoragePrefixesView implements StoragePrefixMap
     private final Node graphName;
 
     public static StoragePrefixMap viewDataset(StoragePrefixes dsgPrefixes)
-    { return new StoragePrefixesView(dsgPrefixes, Quad.defaultGraphNodeGenerated); }
+    { return new StoragePrefixesView(dsgPrefixes, Prefixes.nodeDataset);}
 
-    // Used by tests only
+    // Used by tests only and example code for separate prefixes of TDB2 graphs.
     // ** Not for dataset prefixes.
-    /*package*/ static StoragePrefixMap viewDefaultGraph(StoragePrefixes dsgPrefixes)
-    { return new StoragePrefixesView(dsgPrefixes, Quad.defaultGraphNodeGenerated); }
+    /*package*/ public static StoragePrefixMap internal_viewDefaultGraph(StoragePrefixes dsgPrefixes)
+    { return new StoragePrefixesView(dsgPrefixes, Prefixes.nodeDefaultGraph); }
 
-    // Used by tests only
+    // Used by tests only and example code for separate prefixes of TDB2 graphs.
     // ** Not for dataset prefixes.
-    /*package*/ static StoragePrefixMap viewGraph(StoragePrefixes dsgPrefixes, Node graphName)
+    /*package*/ public static StoragePrefixMap internal_viewGraph(StoragePrefixes dsgPrefixes, Node graphName)
     { return new StoragePrefixesView(dsgPrefixes, graphName); }
 
     private StoragePrefixesView(StoragePrefixes dsgPrefixes, Node graphName) {

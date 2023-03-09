@@ -27,7 +27,10 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.runners.Parameterized.Parameters;
 
-/** Test suite driver for IRIx */
+/** Test suite driver for IRIx.
+ * The test execution environment is set to be "strict".
+ * Tests can change this; it is reset after each test.
+ */
 public class AbstractTestIRIx {
 
     @Parameters(name = "{index}: {0}")
@@ -41,40 +44,57 @@ public class AbstractTestIRIx {
         return data;
     }
 
-    protected static void setProvider(IRIProvider provider) {
-        provider.strictMode("urn", true);
-        provider.strictMode("file", true);
-        SystemIRIx.setProvider(provider);
-    }
-
     protected static IRIProvider getProvider() {
         return SystemIRIx.getProvider();
     }
 
     protected void notStrict(String scheme, Runnable action) {
+        boolean b = provider.isStrictMode(scheme);
         provider.strictMode(scheme, false);
         try { action.run(); }
-        finally { provider.strictMode(scheme, true); }
+        finally { provider.strictMode(scheme, b); }
     }
 
     private final IRIProvider provider;
     private static IRIProvider systemProvider;
 
-    @BeforeClass static public void beforeClass() {
+    // Strictness is managed statically by providers.
+    private static boolean StrictHTTP;
+    private static boolean StrictURN;
+    private static boolean StrictFILE;
+    private static boolean StrictDID;
+
+    @BeforeClass static public void beforeClass_StoreSystemProvider() {
         systemProvider = getProvider();
+        StrictHTTP = systemProvider.isStrictMode("http");
+        StrictURN  = systemProvider.isStrictMode("urn");
+        StrictFILE = systemProvider.isStrictMode("file");
+        StrictDID  = systemProvider.isStrictMode("did");
     }
 
-    @AfterClass static public void afterClass() {
-        setProvider(systemProvider);
+    @AfterClass static public void afterClass_RestoreSystemProvider() {
+        systemProvider.strictMode("http", StrictHTTP);
+        systemProvider.strictMode("urn",  StrictURN);
+        systemProvider.strictMode("file", StrictFILE);
+        systemProvider.strictMode("did",  StrictDID);
     }
 
-    @Before public void beforeTest() {
-        systemProvider = getProvider();
-        setProvider(provider);
+    @Before public void beforeTest_setStrict() {
+        provider.strictMode("http", true);
+        provider.strictMode("urn",  true);
+        provider.strictMode("file", true);
+        provider.strictMode("did",  true);
     }
 
-    @After public void afterTest() {
-        setProvider(systemProvider);
+    @After public void afterTest_restoreSystemProvider() {
+        restore();
+    }
+
+    private static void restore() {
+        systemProvider.strictMode("http", StrictHTTP);
+        systemProvider.strictMode("urn",  StrictURN);
+        systemProvider.strictMode("file", StrictFILE);
+        systemProvider.strictMode("did",  StrictDID);
     }
 
     protected AbstractTestIRIx(String name, IRIProvider provider) {

@@ -55,8 +55,8 @@ public class GraphTarget {
 //        if ( ! dsg.isInTransaction() )
 //            ServletOps.errorOccurred("Internal error : No transaction");
 
-        boolean dftGraph = GSPLib.getOneOnly(action.request, HttpNames.paramGraphDefault) != null;
-        String uri = GSPLib.getOneOnly(action.request, HttpNames.paramGraph);
+        boolean dftGraph = GSPLib.getOneOnly(action.getRequest(), HttpNames.paramGraphDefault) != null;
+        String uri = GSPLib.getOneOnly(action.getRequest(), HttpNames.paramGraph);
 
         if ( !dftGraph && uri == null ) {
             // No params - direct naming?
@@ -64,8 +64,8 @@ public class GraphTarget {
                 ServletOps.errorBadRequest("Neither default graph nor named graph specified");
 
             // Direct naming.
-            String directName = action.request.getRequestURL().toString();
-            if ( action.request.getRequestURI().equals(action.getDatasetName()) )
+            String directName = action.getRequestRequestURL().toString();
+            if ( action.getRequestRequestURI().equals(action.getDatasetName()) )
                 // No name (should have been a quads operations).
                 ServletOps.errorBadRequest("Neither default graph nor named graph specified and no direct name");
             Node gn = NodeFactory.createURI(directName);
@@ -81,11 +81,10 @@ public class GraphTarget {
         // Named graph - union
         if ( uri.equals(HttpNames.graphTargetUnion) )
             return createUnion(dsg);
-
+        // This logs bad URIs.
         String absUri = resolve0(uri, action);
         return createNamed(dsg, absUri);
     }
-
 
     // Resolving a relative URI in ?graph= is a bit murky.
     //   Whether to use the base of the dataset or the dataset+service endpoint name.
@@ -122,7 +121,7 @@ public class GraphTarget {
             return null;
         }
 
-        String baseStr = action.request.getRequestURL().toString();
+        String baseStr = action.getRequestRequestURL().toString();
         Endpoint ep = action.getEndpoint();
         if ( ! ep.isUnnamed() && baseStr.endsWith(ep.getName()) ) {
             // Remove endpoint name
@@ -227,7 +226,7 @@ public class GraphTarget {
             return "default";
         if ( isUnion )
             return "union";
-        return NodeFmtLib.str(graphName);
+        return NodeFmtLib.strTTL(graphName);
     }
 
     @Override

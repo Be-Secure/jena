@@ -72,6 +72,10 @@ public class DatasetGraphSimpleMem extends DatasetGraphTriplesQuads implements T
         int size() {
             return store.size();
         }
+
+        void clear() {
+            store.clear();
+        }
     }
 
     public DatasetGraphSimpleMem() {}
@@ -133,7 +137,7 @@ public class DatasetGraphSimpleMem extends DatasetGraphTriplesQuads implements T
 
     @Override
     protected void addToDftGraph(Node s, Node p, Node o) {
-        Triple t = new Triple(s, p, o);
+        Triple t = Triple.create(s, p, o);
         triples.add(t);
     }
 
@@ -145,7 +149,7 @@ public class DatasetGraphSimpleMem extends DatasetGraphTriplesQuads implements T
 
     @Override
     protected void deleteFromDftGraph(Node s, Node p, Node o) {
-        triples.remove(new Triple(s, p, o));
+        triples.remove(Triple.create(s, p, o));
     }
 
     @Override
@@ -168,7 +172,7 @@ public class DatasetGraphSimpleMem extends DatasetGraphTriplesQuads implements T
         protected ExtendedIterator<Triple> graphBaseFind(Triple m) {
             List<Triple> results = new ArrayList<>();
             for ( Triple t : triples )
-                if ( t.matches(m.getMatchSubject(), m.getMatchPredicate(), m.getMatchObject()) )
+                if ( m.matches(t.getMatchSubject(), t.getMatchPredicate(), t.getMatchObject()) )
                     results.add(t);
             return WrappedIterator.create(results.iterator());
         }
@@ -212,6 +216,17 @@ public class DatasetGraphSimpleMem extends DatasetGraphTriplesQuads implements T
     @Override
     public Graph getGraph(Node graphNode) {
         return new GraphNamed(graphNode);
+    }
+
+    @Override
+    public void clear() {
+        triples.clear();
+        quads.clear();
+    }
+
+    @Override
+    public long size() {
+        return graphNodes().size();
     }
 
     @Override

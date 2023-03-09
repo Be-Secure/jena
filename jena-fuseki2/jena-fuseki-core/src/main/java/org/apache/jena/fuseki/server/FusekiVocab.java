@@ -52,11 +52,13 @@ public class FusekiVocab
     public static final Property pUnionDefaultGraph         = property("unionDefaultGraph");
     public static final Property pAllowTimeoutOverride      = property("allowTimeoutOverride");
     public static final Property pMaximumTimeoutOverride    = property("maximumTimeoutOverride");
+    public static final Property pDataset                   = property("dataset");
 
     // Server endpoints.
     public static final Property pServerPing        = property("pingEP");
     public static final Property pServerStats       = property("statsEP");
     public static final Property pServerMetrics     = property("metricsEP");
+    public static final Property pServerCompact     = property("compactEP");
 
     // Endpoint description - old style.
     public static final Property pServiceQueryEP                = property("serviceQuery");
@@ -81,6 +83,7 @@ public class FusekiVocab
     public static final Resource opNoOp        = resource("no-op");
     public static final Resource opNoOp_alt    = resource("no_op");
     public static final Resource opShacl       = resource("shacl");
+    public static final Resource opPatch       = resource("patch");
 
     // Internal
     private static final String stateNameActive     = DataServiceStatus.ACTIVE.name;

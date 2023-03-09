@@ -21,7 +21,6 @@ package org.apache.jena.riot;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Objects;
 
 import org.apache.jena.atlas.io.IO;
@@ -72,13 +71,13 @@ public class RDFWriter {
      *        .output(System.out);
      * </pre>
      */
-    public static RDFWriterBuilder create() { return new RDFWriterBuilder(); }
+    public static RDFWriterBuilder create() { return RDFWriterBuilder.create(); }
 
     /** Create an {@link RDFWriterBuilder} and set the source of writing to the graph argument.
      * @param graph     A {@link Graph}.
      * @return RDFWriterBuilder
      */
-    public static RDFWriterBuilder create(Graph graph) {
+    public static RDFWriterBuilder source(Graph graph) {
         return create().source(graph);
     }
 
@@ -86,7 +85,7 @@ public class RDFWriter {
      * @param model     A {@link Model}.
      * @return RDFWriterBuilder
      */
-    public static RDFWriterBuilder create(Model model) {
+    public static RDFWriterBuilder source(Model model) {
         return create().source(model);
     }
 
@@ -94,7 +93,7 @@ public class RDFWriter {
      * @param dataset     A {@link DatasetGraph}.
      * @return RDFWriterBuilder
      */
-    public static RDFWriterBuilder create(DatasetGraph dataset) {
+    public static RDFWriterBuilder source(DatasetGraph dataset) {
         return create().source(dataset);
     }
 
@@ -102,6 +101,46 @@ public class RDFWriter {
      * @param dataset     A {@link Dataset}.
      * @return RDFWriterBuilder
      */
+    public static RDFWriterBuilder source(Dataset dataset) {
+        return create().source(dataset);
+    }
+
+    /** Create an {@link RDFWriterBuilder} and set the source of writing to the graph argument.
+     * @param graph     A {@link Graph}.
+     * @return RDFWriterBuilder
+     * @deprecated Use {@link #source(Graph)}
+     */
+    @Deprecated
+    public static RDFWriterBuilder create(Graph graph) {
+        return create().source(graph);
+    }
+
+    /** Create an {@link RDFWriterBuilder} and set the source of writing to the graph argument.
+     * @param model     A {@link Model}.
+     * @return RDFWriterBuilder
+     * @deprecated Use {@link #source(Model)}
+     */
+    @Deprecated
+    public static RDFWriterBuilder create(Model model) {
+        return create().source(model);
+    }
+
+    /** Create an {@link RDFWriterBuilder} and set the source of writing to the graph argument.
+     * @param dataset     A {@link DatasetGraph}.
+     * @return RDFWriterBuilder
+     * @deprecated Use {@link #source(DatasetGraph)}
+     */
+    @Deprecated
+    public static RDFWriterBuilder create(DatasetGraph dataset) {
+        return create().source(dataset);
+    }
+
+    /** Create an {@link RDFWriterBuilder} and set the source of writing to the graph argument.
+     * @param dataset     A {@link Dataset}.
+     * @return RDFWriterBuilder
+     * @deprecated Use {@link #source(Dataset)}
+     */
+    @Deprecated
     public static RDFWriterBuilder create(Dataset dataset) {
         return create().source(dataset);
     }
@@ -125,7 +164,8 @@ public class RDFWriter {
         return format;
     }
 
-    /** Write and return as a string.
+    /**
+     * Write and return the output as a string.
      * <p>
      * The {@code Lang} or {@code RDFFormat} must have been set.
      */
@@ -138,7 +178,18 @@ public class RDFWriter {
         } catch (IOException ex) { IO.exception(ex); return null; }
     }
 
-    /** Write the source to the {@code OutputStream}.
+    /**
+     * Write and return the output as a string.
+     * This is the same as {@link #asString()}.
+     * <p>
+     * The {@code Lang} or {@code RDFFormat} must have been set.
+     */
+    @Override
+    public String toString() {
+        return asString();
+    }
+
+        /** Write the source to the {@code OutputStream}.
      * <p>
      * The {@code Lang} or {@code RDFFormat} must have been set.
      * @param output
@@ -158,6 +209,14 @@ public class RDFWriter {
         output(javaWriter, format);
     }
 
+    /** Write the source to a Java {@link StringWriter}.
+     * <p>
+     * The {@code Lang} or {@code RDFFormat} must have been set.
+     * @param javaWriter
+     */
+    public void output(StringWriter javaWriter) {
+        output(javaWriter, format);
+    }
 
     /** Write the source to the file.
      * <p>
@@ -182,7 +241,7 @@ public class RDFWriter {
             output(System.out, fmt);
             return;
         }
-        Path p = Paths.get(filename);
+        Path p = Path.of(filename);
         try ( OutputStream out1 = Files.newOutputStream(p);
               OutputStream out = new BufferedOutputStream(out1, BUF_SIZE)){
             output(out, fmt);

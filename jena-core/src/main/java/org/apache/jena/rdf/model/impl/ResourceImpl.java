@@ -58,7 +58,7 @@ public class ResourceImpl extends EnhNode implements Resource {
 };
 
     /**
-        the master constructor: make a new Resource in the given model,
+        the main constructor: make a new Resource in the given model,
         rooted in the given node.
 
         NOT FOR PUBLIC USE - used in ModelCom [and ContainerImpl]
@@ -115,8 +115,14 @@ public class ResourceImpl extends EnhNode implements Resource {
     }
 
     @Override
-    public Object visitWith( RDFVisitor rv )
-        { return isAnon() ? rv.visitBlank( this, getId() ) : rv.visitURI( this, getURI() ); }
+    public Object visitWith(RDFVisitor rv) {
+        if ( isAnon() )
+            return rv.visitBlank(this, getId());
+        if ( isStmtResource() )
+            return rv.visitStmt(this, getStmtTerm());
+        // if isURIResource()
+        return rv.visitURI(this, getURI());
+    }
 
     @Override
     public Resource asResource()
@@ -127,14 +133,18 @@ public class ResourceImpl extends EnhNode implements Resource {
         { throw new LiteralRequiredException( asNode() ); }
 
     @Override
-    public Resource inModel( Model m )
-        {
-        return
-            getModel() == m ? this
-            : isAnon() ? m.createResource( getId() )
-            : asNode().isConcrete() == false ? (Resource) m.getRDFNode( asNode() )
-            : m.createResource( getURI() );
-        }
+    public Resource inModel( Model m ) {
+        if ( getModel() == m )
+            return this;
+        if ( isAnon() )
+            return m.createResource( getId() );
+        if ( isStmtResource() )
+            return  m.createResource( getStmtTerm() );
+        if ( asNode().isConcrete() == false )
+            return (Resource) m.getRDFNode( asNode() );
+        // if isURIResource()
+        return m.createResource(getURI());
+    }
 
     private static Node fresh( String uri )
         { return uri == null ? NodeFactory.createBlankNode() : NodeFactory.createURI( uri ); }
@@ -160,12 +170,16 @@ public class ResourceImpl extends EnhNode implements Resource {
 
     @Override
     public String getNameSpace() {
-        return isAnon() ? null : node.getNameSpace();
+        if ( ! isURIResource() )
+            return null;
+        return node.getNameSpace();
     }
 
 	@Override
     public String getLocalName() {
-        return isAnon() ? null : node.getLocalName();
+	    if ( ! isURIResource() )
+	        return null;
+	    return node.getLocalName();
     }
 
     @Override
@@ -188,23 +202,26 @@ public class ResourceImpl extends EnhNode implements Resource {
     	{ return mustHaveModel().getRequiredProperty( this, p ); }
 
     @Override
-    public Statement getRequiredProperty( final Property p, final String lang )
-        {
+    public Statement getRequiredProperty( final Property p, final String lang ) {
         final StmtIterator it = listProperties(p, lang) ;
-        if (!it.hasNext()) throw new PropertyNotFoundException( p );
-        return it.next();
-        }
+        try {
+            if (!it.hasNext()) throw new PropertyNotFoundException( p );
+            return it.next();
+        } finally {it.close(); }
+    }
 
     @Override
     public Statement getProperty( Property p )
         { return mustHaveModel().getProperty( this, p ); }
 
     @Override
-    public Statement getProperty( final Property p, final String lang )
-        {
+    public Statement getProperty( final Property p, final String lang ) {
         final StmtIterator it = listProperties(p, lang) ;
-        return it.hasNext() ? it.next() : null;
+        try {
+            return it.hasNext() ? it.next() : null;
         }
+        finally {it.close(); }
+    }
 
     @Override
     public StmtIterator listProperties(Property p)

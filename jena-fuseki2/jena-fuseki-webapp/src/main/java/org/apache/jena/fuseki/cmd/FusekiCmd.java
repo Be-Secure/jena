@@ -30,14 +30,12 @@ import org.apache.jena.cmd.CmdException;
 import org.apache.jena.cmd.TerminationException;
 import org.apache.jena.fuseki.Fuseki;
 import org.apache.jena.fuseki.FusekiException;
-import org.apache.jena.fuseki.jetty.JettyServerConfig;
 import org.apache.jena.fuseki.mgt.Template;
 import org.apache.jena.fuseki.system.FusekiLogging;
 import org.apache.jena.fuseki.webapp.FusekiEnv;
 import org.apache.jena.fuseki.webapp.FusekiServerListener;
 import org.apache.jena.fuseki.webapp.FusekiWebapp;
 import org.apache.jena.query.ARQ;
-import org.apache.jena.query.Dataset;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.riot.RDFLanguages;
@@ -50,7 +48,7 @@ import org.apache.jena.tdb.sys.Names;
 import org.slf4j.Logger;
 
 /**
- * Handles the fuseki command, used to start a Fuseki server.
+ * Handles the fuseki command, used to start a Fuseki Webapp server.
  */
 public class FusekiCmd {
     // This allows us to set logging before calling FusekiCmdInner
@@ -69,33 +67,31 @@ public class FusekiCmd {
     }
 
     static class FusekiCmdInner extends CmdARQ {
-        // --mgt. --mgtPort  :: Legacy.
-        private static ArgDecl  argMgt          = new ArgDecl(ArgDecl.NoValue, "mgt");
-        private static ArgDecl  argMgtPort      = new ArgDecl(ArgDecl.HasValue, "mgtPort", "mgtport");
-
-        // --home :: Legacy - do not use.
-        private static ArgDecl  argHome         = new ArgDecl(ArgDecl.HasValue, "home");
-        // --pages :: Legacy - do not use.
-        private static ArgDecl  argPages        = new ArgDecl(ArgDecl.HasValue, "pages");
-
-        private static ArgDecl  argMem          = new ArgDecl(ArgDecl.NoValue,  "mem");
+        private static ArgDecl argMem           = new ArgDecl(ArgDecl.NoValue,  "mem");
         // This does not apply to empty in-memory setups.
-        private static ArgDecl  argUpdate       = new ArgDecl(ArgDecl.NoValue,  "update", "allowUpdate");
-        private static ArgDecl  argFile         = new ArgDecl(ArgDecl.HasValue, "file");
-        private static ArgDecl  argTDB2mode     = new ArgDecl(ArgDecl.NoValue,  "tdb2");
-        private static ArgDecl  argMemTDB       = new ArgDecl(ArgDecl.NoValue,  "memtdb", "memTDB", "tdbmem");
-        private static ArgDecl  argTDB          = new ArgDecl(ArgDecl.HasValue, "loc", "location", "tdb");
-        private static ArgDecl  argPort         = new ArgDecl(ArgDecl.HasValue, "port");
-        private static ArgDecl  argLocalhost    = new ArgDecl(ArgDecl.NoValue,  "localhost", "local");
-        private static ArgDecl  argTimeout      = new ArgDecl(ArgDecl.HasValue, "timeout");
-        private static ArgDecl  argFusekiConfig = new ArgDecl(ArgDecl.HasValue, "config", "conf");
-        private static ArgDecl  argJettyConfig  = new ArgDecl(ArgDecl.HasValue, "jetty-config");
-        private static ArgDecl  argGZip         = new ArgDecl(ArgDecl.HasValue, "gzip");
+        private static ArgDecl argUpdate        = new ArgDecl(ArgDecl.NoValue,  "update", "allowUpdate");
+
+        private static ArgDecl argFile          = new ArgDecl(ArgDecl.HasValue, "file");
+        private static ArgDecl argTDB1mode      = new ArgDecl(ArgDecl.NoValue,  "tdb1");
+        private static ArgDecl argTDB2mode      = new ArgDecl(ArgDecl.NoValue,  "tdb2");
+        private static ArgDecl argMemTDB        = new ArgDecl(ArgDecl.NoValue,  "memtdb", "memTDB", "tdbmem");
+        // And not ModLocation.
+        private static ArgDecl argTDB           = new ArgDecl(ArgDecl.HasValue, "loc", "location", "tdb");
+        private static ArgDecl argAssemblerDecl = new ArgDecl(ArgDecl.HasValue, "desc", "dataset");
+
+        // RDFS vocabulary applied to command line defined dataset.
+        private static ArgDecl argRDFS          = new ArgDecl(ArgDecl.HasValue, "rdfs");
+
+        private static ArgDecl argPort          = new ArgDecl(ArgDecl.HasValue, "port");
+        private static ArgDecl argLocalhost     = new ArgDecl(ArgDecl.NoValue,  "localhost", "local");
+        private static ArgDecl argTimeout       = new ArgDecl(ArgDecl.HasValue, "timeout");
+        private static ArgDecl argFusekiConfig  = new ArgDecl(ArgDecl.HasValue, "config", "conf");
+        private static ArgDecl argJettyConfig   = new ArgDecl(ArgDecl.HasValue, "jetty-config", "jetty");
+        private static ArgDecl argGZip          = new ArgDecl(ArgDecl.HasValue, "gzip");
 
         // Deprecated.  Use shiro.
-        private static ArgDecl  argBasicAuth    = new ArgDecl(ArgDecl.HasValue, "basic-auth");
+        private static ArgDecl argBasicAuth     = new ArgDecl(ArgDecl.HasValue, "basic-auth");
 
-        // private static ModLocation modLocation = new ModLocation();
         private static ModDatasetAssembler modDataset      = new ModDatasetAssembler();
 
         static public void innerMain(String... argv) {
@@ -115,7 +111,7 @@ public class FusekiCmd {
         }
 
         private final FusekiArgs cmdLine = new FusekiArgs();
-        private boolean useTDB2;
+        private boolean useTDB2 = true;
 
         public FusekiCmdInner(String... argv) {
             super(argv);
@@ -126,12 +122,21 @@ public class FusekiCmd {
                 "Create an in-memory, non-persistent dataset for the server");
             add(argFile, "--file=FILE",
                 "Create an in-memory, non-persistent dataset for the server, initialised with the contents of the file");
+            add(argTDB1mode, "--tdb1",
+                "Use TDB1 for command line persistent datasets (default is TDB2)");
             add(argTDB2mode, "--tdb2",
-                "Use TDB2 for command line persistent datasets (default is TDB1)");
+                "Use TDB2 for command line persistent datasets (default is TDB2)");
             add(argTDB, "--loc=DIR",
                 "Use an existing TDB database (or create if does not exist)");
             add(argMemTDB, "--memTDB",
                 "Create an in-memory, non-persistent dataset using TDB (testing only)");
+
+            // This has proven confusing because it is like --conf.
+//            add(argAssemblerDecl, "--desc",
+//                "Assembler description of a single database");
+
+            add(argRDFS, "--rdfs=FILE",
+                "Apply RDFS on top of the dataset");
             add(argPort, "--port",
                 "Listen on this port number");
             // Set via jetty config file.
@@ -146,9 +151,6 @@ public class FusekiCmd {
             add(argJettyConfig, "--jetty-config=FILE",
                 "Set up the server (not services) with a Jetty XML file");
             add(argBasicAuth);
-            add(argPages);
-            add(argMgt);           // Legacy
-            add(argMgtPort);       // Legacy
             add(argGZip, "--gzip=on|off",
                 "Enable GZip compression (HTTP Accept-Encoding) if request header set");
 
@@ -156,7 +158,7 @@ public class FusekiCmd {
             super.modVersion.addClass(Fuseki.class);
         }
 
-        static String argUsage = "[--config=FILE] [--mem|--desc=AssemblerFile|--file=FILE] [--port PORT] /DatasetPathName";
+        private static String argUsage = "[--config=FILE] [--mem|--loc=TDBdatabase|--file=FILE] [--port PORT] /DatasetPathName";
 
         @Override
         protected String getSummary() {
@@ -169,10 +171,14 @@ public class FusekiCmd {
                 jettyServerConfig.verboseLogging = true;
                 // Output is still at level INFO (currently)
             }
+
             cmdLine.quiet = super.isQuiet();
             cmdLine.verbose = super.isVerbose();
 
-            // Any final tinkering with FUSEKI_HOME and FUSEKI_BASE, e.g. arguments like --home, --base, then ....
+            // Any final tinkering with FUSEKI_HOME and FUSEKI_BASE (run area), e.g. arguments like --home, --base, then ....
+//            if ( contains(argHome) )
+//                Fuseki.configLog.warn("--home ignored (use enviroment variables $FUSEKI_HOME and $FUSEKI_BASE)");
+
             FusekiEnv.resetEnvironment();
 
             Logger log = Fuseki.serverLog;
@@ -182,8 +188,6 @@ public class FusekiCmd {
                 cmdLine.datasetDescription = "Configuration: "+cmdLine.fusekiCmdLineConfigFile;
             }
 
-            ArgDecl assemblerDescDecl = new ArgDecl(ArgDecl.HasValue, "desc", "dataset");
-
             // ---- Datasets
             // Check one and only way is defined.
             int x = 0;
@@ -192,7 +196,7 @@ public class FusekiCmd {
                 x++;
             if ( contains(argFile) )
                 x++;
-            if ( contains(assemblerDescDecl) )
+            if ( contains(argAssemblerDecl) )
                 x++;
             if ( contains(argTDB) )
                 x++;
@@ -230,10 +234,31 @@ public class FusekiCmd {
                     cmdLine.fusekiServerConfigFile = cfg.toString();
             }
 
-            // Which TDB to use to create a command line TDB database.
-            useTDB2 = contains(argTDB2mode);
+            if ( ! cmdlineConfigPresent && contains(argRDFS) )
+                throw new CmdException("Need to define RDFS setup in the configuration file.");
+
+            // ---- General settings.
 
             cmdLine.allowUpdate = contains(argUpdate);
+
+            // This influences later settings.
+            if ( contains(argLocalhost) ) {
+                cmdLine.allowUpdate = true;
+                jettyServerConfig.loopback = true;
+            }
+
+            if ( contains(argTimeout) ) {
+                String str = getValue(argTimeout);
+                ARQ.getContext().set(ARQ.queryTimeout, str);
+            }
+
+            // Which TDB to use to create a command line TDB database.
+            if ( contains(argTDB1mode) )
+                useTDB2 = false;
+            if ( contains(argTDB2mode) )
+                useTDB2 = true;
+
+            // ---- Per storage/configuration
 
             if ( contains(argMem) ) {
                 cmdLine.datasetDescription = "in-memory";
@@ -250,6 +275,8 @@ public class FusekiCmd {
                 // Directly populate the dataset.
                 cmdLine.reset();
                 cmdLine.dsg = DatasetGraphFactory.createTxnMem();
+                // Update is not enabled by default for --file
+                cmdLine.allowUpdate = contains(argUpdate);
                 cmdLine.datasetDescription = "in-memory, with files loaded";
                 for ( String filename : filenames ) {
                     String pathname = filename;
@@ -284,16 +311,26 @@ public class FusekiCmd {
                 String dir = getValue(argTDB);
                 cmdLine.params.put(Template.DIR, dir);
                 cmdLine.reset();
+                cmdLine.allowUpdate = contains(argUpdate);
                 WebappDSGSetup.setup(dir, useTDB2, cmdLine);
             }
 
-            // Otherwise
-            if ( contains(assemblerDescDecl) ) {
-                cmdLine.datasetDescription = "Assembler: "+ modDataset.getAssemblerFile();
-                // Need to add service details.
-                Dataset ds = modDataset.createDataset();
-                //cmdLineDataset.dsg = ds.asDatasetGraph();
+            if ( contains(argRDFS) ) {
+                String rdfsVocab = getValue(argRDFS);
+                if ( !FileOps.exists(rdfsVocab) )
+                    throw new CmdException("No such file for RDFS: "+rdfsVocab);
+                cmdLine.rdfsGraph = rdfsVocab;
+                cmdLine.datasetDescription = cmdLine.datasetDescription+ " (with RDFS)";
             }
+
+            // This is has proven confusing because it is like --conf.
+//            // Otherwise
+//            if ( contains(argAssemblerDecl) ) {
+//                cmdLine.datasetDescription = "Assembler: "+ modDataset.getAssemblerFile();
+//                // Need to add service details.
+//                Dataset ds = modDataset.createDataset();
+//                //cmdLineDataset.dsg = ds.asDatasetGraph();
+//            }
 
             if ( cmdlineConfigPresent ) {
                 cmdLine.datasetPath = getPositionalArg(0);
@@ -318,34 +355,11 @@ public class FusekiCmd {
                 }
             }
 
-            if ( contains(argMgt) )
-                Fuseki.configLog.warn("Fuseki v2: Management functions are always enabled.  --mgt not needed.");
-
-            if ( contains(argMgtPort) )
-                Fuseki.configLog.warn("Fuseki v2: Management functions are always on the same port as the server.  --mgtPort ignored.");
-
-            if ( contains(argLocalhost) )
-                jettyServerConfig.loopback = true;
-
-            if ( contains(argTimeout) ) {
-                String str = getValue(argTimeout);
-                ARQ.getContext().set(ARQ.queryTimeout, str);
-            }
-
             if ( contains(argJettyConfig) ) {
                 jettyServerConfig.jettyConfigFile = getValue(argJettyConfig);
                 if ( !FileOps.exists(jettyServerConfig.jettyConfigFile) )
                     throw new CmdException("No such file: " + jettyServerConfig.jettyConfigFile);
             }
-
-            if ( contains(argBasicAuth) )
-                Fuseki.configLog.warn("--basic-auth ignored (use Shiro setup instead)");
-
-            if ( contains(argHome) )
-                Fuseki.configLog.warn("--home ignored (use enviroment variables $FUSEKI_HOME and $FUSEKI_BASE)");
-
-            if ( contains(argPages) )
-                Fuseki.configLog.warn("--pages ignored (enviroment variables $FUSEKI_HOME to provide the webapp)");
 
             if ( contains(argGZip) ) {
                 if ( !hasValueOfTrue(argGZip) && !hasValueOfFalse(argGZip) )

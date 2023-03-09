@@ -18,6 +18,19 @@
 
 package org.apache.jena.sparql.function.scripting;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import javax.script.*;
+
 import org.apache.jena.atlas.io.IO;
 import org.apache.jena.atlas.lib.Pool;
 import org.apache.jena.atlas.lib.PoolBase;
@@ -29,21 +42,13 @@ import org.apache.jena.sparql.expr.ExprList;
 import org.apache.jena.sparql.expr.ExprUndefFunction;
 import org.apache.jena.sparql.expr.NodeValue;
 import org.apache.jena.sparql.function.FunctionBase;
-import org.apache.jena.sparql.sse.builders.ExprBuildException;
-
-import javax.script.*;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.Reader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import org.apache.jena.sparql.sse.builders.SSE_ExprBuildException;
 
 public class ScriptFunction extends FunctionBase {
+	static {
+        System.setProperty("polyglot.engine.WarnInterpreterOnly", "false");
+    }
+	
     private static final ScriptEngineManager scriptEngineManager = new ScriptEngineManager();
 
     private static final String ARQ_NS = "http://jena.apache.org/ARQ/";
@@ -73,7 +78,7 @@ public class ScriptFunction extends FunctionBase {
     @Override
     public void checkBuild(String uri, ExprList args) {
         if (!isScriptFunction(uri)) {
-            throw new ExprBuildException("Invalid URI: " + uri);
+            throw new SSE_ExprBuildException("Invalid URI: " + uri);
         }
 
         String localPart = uri.substring(ARQ_NS.length());
@@ -126,7 +131,7 @@ public class ScriptFunction extends FunctionBase {
     private Invocable createEngine() {
         ScriptEngine engine = scriptEngineManager.getEngineByName(lang);
         if (engine == null) {
-            throw new ExprBuildException("Unknown scripting language: " + lang);
+            throw new SSE_ExprBuildException("Unknown scripting language: " + lang);
         }
         // Enforce Nashorn compatibility for Graal.js
         if (engine.getFactory().getEngineName().equals("Graal.js")) {
@@ -134,19 +139,19 @@ public class ScriptFunction extends FunctionBase {
         }
 
         if (!(engine instanceof Invocable)) {
-            throw new ExprBuildException("Script engine  " + engine.getFactory().getEngineName() + " doesn't implement Invocable");
+            throw new SSE_ExprBuildException("Script engine  " + engine.getFactory().getEngineName() + " doesn't implement Invocable");
         }
 
         String functionLibFile = ARQ.getContext().getAsString(LanguageSymbols.scriptLibrary(lang));
         if (functionLibFile != null) {
-            try (Reader reader = Files.newBufferedReader(Paths.get(functionLibFile), StandardCharsets.UTF_8)) {
+            try (Reader reader = Files.newBufferedReader(Path.of(functionLibFile), StandardCharsets.UTF_8)) {
                 engine.eval(reader);
             } catch (NoSuchFileException | FileNotFoundException ex) {
                 throw new RiotNotFoundException("File: " + functionLibFile);
             } catch (IOException ex) {
                 IO.exception(ex);
             } catch (ScriptException e) {
-                throw new ExprBuildException("Failed to load " + lang + " library", e);
+                throw new SSE_ExprBuildException("Failed to load " + lang + " library", e);
             }
         }
 
@@ -155,7 +160,7 @@ public class ScriptFunction extends FunctionBase {
             try {
                 engine.eval(functions);
             } catch (ScriptException e) {
-                throw new ExprBuildException("Failed to load " + lang + " functions", e);
+                throw new SSE_ExprBuildException("Failed to load " + lang + " functions", e);
             }
         }
 
@@ -165,7 +170,7 @@ public class ScriptFunction extends FunctionBase {
                 invocable.invokeFunction("arq" + name + "init");
             } catch (NoSuchMethodException ignore) {
             } catch (ScriptException ex) {
-                throw new ExprBuildException("Failed to call " + lang + " initialization function", ex);
+                throw new SSE_ExprBuildException("Failed to call " + lang + " initialization function", ex);
             }
         }
 

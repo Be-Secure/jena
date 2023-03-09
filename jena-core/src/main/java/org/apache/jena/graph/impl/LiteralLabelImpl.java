@@ -78,10 +78,10 @@ final /*public*/ class LiteralLabelImpl implements LiteralLabel {
 	private boolean wellformed = true;
 	
 	/**
-	 * keeps the message provided by the DatatypeFormatException
-	 * if parsing failed for delayed exception thrown in getValue()
+	 * keeps the DatatypeFormatException if parsing failed for delayed
+	 * exception thrown in getValue()
 	 */
-	private String exceptionMsg = null; // Suggested by Andreas Langegger
+	private Throwable exception = null;
 	
 	//=======================================================================
 	// Constructors
@@ -223,7 +223,7 @@ final /*public*/ class LiteralLabelImpl implements LiteralLabel {
 				throw e;
 			} else {
 				wellformed = false;
-				exceptionMsg  = e.getMessage();
+				exception  = e;
 			}
 		}
 	}
@@ -383,7 +383,7 @@ final /*public*/ class LiteralLabelImpl implements LiteralLabel {
 			throw new DatatypeFormatException(
 				lexicalForm,
 				dtype,
-				exceptionMsg);
+				exception);
 		}
 	}
 
@@ -500,6 +500,7 @@ final /*public*/ class LiteralLabelImpl implements LiteralLabel {
     
     /** Return true if the literal label is a language string. (RDF 1.0 and RDF 1.1) */
     public static boolean isLangString(LiteralLabel lit) {
+        // Duplicated by Util.isLangString except for the consistency check.
         String lang = lit.language() ;
         if ( lang == null )
             return false ;

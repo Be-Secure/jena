@@ -45,7 +45,7 @@ import org.apache.jena.vocabulary.RDFS;
  * Library code for operations related to building Fuseki servers and services.
  */
 /*package*/ class BuildLib {
-    
+
     private BuildLib() {}
 
     // ---- Helper code
@@ -76,7 +76,7 @@ import org.apache.jena.vocabulary.RDFS;
         QuerySolutionMap initValues = null;
         if ( varName != null && value != null )
             initValues = querySolution(varName, value);
-        try ( QueryExecution qExec = QueryExecutionFactory.create(query, m, initValues) ) {
+        try ( QueryExecution qExec = QueryExecution.create().query(query).model(m).initialBinding(initValues).build() ) {
             return ResultSetFactory.copyResults(qExec.execSelect());
         }
     }
@@ -102,8 +102,8 @@ import org.apache.jena.vocabulary.RDFS;
         return qsm;
     }
 
-    /*package*/ static RDFNode getOne(Resource svc, String property) {
-        ResultSet rs = BuildLib.query("SELECT * { ?svc " + property + " ?x}", svc.getModel(), "svc", svc);
+    /*package*/ static RDFNode getOne(Resource svc, Property property) {
+        ResultSet rs = BuildLib.query("SELECT * { ?svc <" + property.getURI() + "> ?x}", svc.getModel(), "svc", svc);
         if ( !rs.hasNext() )
             throw new FusekiConfigException("No property '" + property + "' for service " + BuildLib.nodeLabel(svc));
         RDFNode x = rs.next().get("x");
@@ -177,7 +177,7 @@ import org.apache.jena.vocabulary.RDFS;
         }
         return "<" + uri + ">";
     }
-    
+
     /*package*/ static RDFNode getZeroOrOne(Resource ep, Property property) {
         StmtIterator iter = ep.listProperties(property);
         try {
@@ -189,7 +189,7 @@ import org.apache.jena.vocabulary.RDFS;
             return x;
         } finally { iter.close(); }
     }
-    
+
     /** Load a class (an {@link ActionService}) and create an {@link Operation} for it. */
     /*package*/ static Pair<Operation, ActionService> loadOperationActionService(RDFNode implementation) {
         String classURI = implementation.isLiteral()

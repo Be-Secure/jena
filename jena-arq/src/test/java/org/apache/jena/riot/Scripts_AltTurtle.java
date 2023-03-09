@@ -18,9 +18,9 @@
 
 package org.apache.jena.riot;
 
-import org.apache.jena.arq.junit.manifest.Label;
 import org.apache.jena.arq.junit.manifest.Manifests;
 import org.apache.jena.arq.junit.riot.ParseForTest;
+import org.apache.jena.arq.junit.runners.Label;
 import org.apache.jena.arq.junit.runners.RunnerRIOT;
 import org.apache.jena.riot.lang.extra.TurtleJCC;
 import org.apache.jena.sys.JenaSystem;
@@ -35,8 +35,10 @@ import org.junit.runner.RunWith ;
 @Manifests({
     "testing/RIOT/Lang/TurtleStd/manifest.ttl",
     "testing/RIOT/Lang/Turtle2/manifest.ttl",
-    "testing/RIOT/Lang/TurtleSubm/manifest.ttl",
-    "testing/ARQ/RDF-star/Turtle-star/manifest.ttl"
+
+    "testing/rdf-tests-cg/turtle/manifest.ttl",
+    "testing/rdf-star-cg/turtle/syntax/manifest.ttl",
+    "testing/rdf-star-cg/turtle/eval/manifest.ttl"
 })
 
 public class Scripts_AltTurtle
@@ -49,7 +51,7 @@ public class Scripts_AltTurtle
         TurtleJCC.register();
         ParseForTest.alternativeReaderFactories.put(Lang.TURTLE, TurtleJCC.factory);
     }
-    
+
     @AfterClass public static void afterClass() {
         ParseForTest.alternativeReaderFactories.remove(Lang.TURTLE);
     }

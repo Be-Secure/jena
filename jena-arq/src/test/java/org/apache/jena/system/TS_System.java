@@ -29,6 +29,9 @@ import org.junit.runners.Suite ;
     , TestTxnOp.class
     , TestTxn.class
     , TestTxnThread.class
+    , TestJenaTitanium.class
+    , TestReadXML.class
+    , TestRDFStarTranslation.class
 })
 
 public class TS_System {}

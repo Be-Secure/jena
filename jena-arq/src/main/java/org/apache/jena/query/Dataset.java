@@ -21,6 +21,7 @@ package org.apache.jena.query;
 import java.util.Iterator ;
 
 import org.apache.jena.rdf.model.Model ;
+import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.riot.system.Prefixes;
 import org.apache.jena.shared.Lock ;
 import org.apache.jena.shared.PrefixMapping;
@@ -28,10 +29,10 @@ import org.apache.jena.sparql.core.DatasetGraph ;
 import org.apache.jena.sparql.core.Transactional;
 import org.apache.jena.sparql.util.Context ;
 
-/** Query is over a Dataset, a collection of named graphs
- *  and a background graph (also called the default
- *  graph or unnamed graph). */
-
+/**
+ * Query is over a Dataset, a collection of named graphs
+ *  and a default graph (also called the unnamed graph).
+ */
 public interface Dataset extends Transactional
 {
     /** Get the default graph as a Jena Model */
@@ -41,7 +42,8 @@ public interface Dataset extends Transactional
     public Model getUnionModel() ;
 
     /**
-     * Set the default graph. Can be set to null for none.
+     * Set the default graph.
+     * This operation copies the statements from the model into the default graph of the dataset.
      *
      * @param model the default graph to set
      * @return this {@code Dataset} for continued usage
@@ -51,11 +53,17 @@ public interface Dataset extends Transactional
     /** Get a graph by name as a Jena Model */
     public Model getNamedModel(String uri) ;
 
+    /** Get a graph by resource as a Jena Model */
+    public Model getNamedModel(Resource uri) ;
+
     /** Does the dataset contain a model with the name supplied? */
     public boolean containsNamedModel(String uri) ;
 
+    /** Does the dataset contain a model named by the resource supplied? */
+    public boolean containsNamedModel(Resource uri) ;
+
     /**
-     * Set a named graph.
+     * Add a named graph.
      *
      * @param uri the name of the graph to set
      * @param model the graph to set
@@ -64,12 +72,29 @@ public interface Dataset extends Transactional
     public Dataset addNamedModel(String uri, Model model);
 
     /**
+     * Add a named graph.
+     *
+     * @param resource the name of the graph to set
+     * @param model the graph to set
+     * @return this {@code Dataset} for continued usage
+     */
+    public Dataset addNamedModel(Resource resource, Model model);
+
+    /**
      * Remove a named graph.
      *
-     * @param uri the name of the gaph to remove
+     * @param uri the name of the graph to remove
      * @return this {@code Dataset} for continued usage
      */
     public Dataset removeNamedModel(String uri);
+
+    /**
+     * Remove a named graph.
+     *
+     * @param resource the name of the graph to remove
+     * @return this {@code Dataset} for continued usage
+     */
+    public Dataset removeNamedModel(Resource resource);
 
     /**
      * Change a named graph for another using the same name
@@ -80,8 +105,20 @@ public interface Dataset extends Transactional
      */
     public Dataset replaceNamedModel(String uri, Model model);
 
+    /**
+     * Change a named graph for another using the same name
+     *
+     * @param resource the name of the graph to replace
+     * @param model the graph with which to replace it
+     * @return this {@code Dataset} for continued usage
+     */
+    public Dataset replaceNamedModel(Resource resource, Model model);
+
     /** List the names */
     public Iterator<String> listNames() ;
+
+    /** List the names */
+    public Iterator<Resource> listModelNames() ;
 
     /** Get the lock for this dataset */
     public Lock getLock() ;

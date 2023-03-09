@@ -1,18 +1,19 @@
 /*
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
- *  See the NOTICE file distributed with this work for additional
- *  information regarding copyright ownership.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.jena.riot.system;
@@ -44,8 +45,13 @@ public class PrefixLib {
 
     /** Canonical name for graphs */
     public static Node canonicalGraphName(Node graphName) {
-        if ( graphName == null || Quad.isDefaultGraph(graphName) )
+        // Compatibility with old style dataset prefixes are the default graph prefixes.
+        // To force apart, use Prefixes.nodeDefaultGraph
+        if ( graphName == null || Quad.isDefaultGraph(graphName) ) {
+            // Sept 2021: probably now safe -- no output in the test suite
+            // System.err.println("** Convert to Prefixes.nodeDataset");
             return Prefixes.nodeDataset;
+        }
         return graphName;
     }
 
@@ -55,12 +61,14 @@ public class PrefixLib {
      * Further checking for the rules of a particular syntax are necessary.
      */
     public static String abbreviate(PrefixMap prefixes, String uriStr) {
+        // With a test for ":".
         Map<String, String> map = prefixes.getMapping();
         for ( Entry<String, String> e : map.entrySet() ) {
             String prefix = e.getKey();
-            String prefixUri = e.getValue();
-            if ( uriStr.startsWith(prefixUri) ) {
-                String ln = uriStr.substring(prefixUri.length());
+            String uriForPrefix = e.getValue();
+            if ( uriStr.startsWith(uriForPrefix) ) {
+                String ln = uriStr.substring(uriForPrefix.length());
+                // Safe for RDF/XML as well
                 if ( strSafeFor(ln, '/') && strSafeFor(ln, '#') && strSafeFor(ln, ':') )
                     return prefix + ":" + ln;
             }

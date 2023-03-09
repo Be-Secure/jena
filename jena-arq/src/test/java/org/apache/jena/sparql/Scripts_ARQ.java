@@ -18,8 +18,8 @@
 
 package org.apache.jena.sparql;
 
-import org.apache.jena.arq.junit.manifest.Label;
 import org.apache.jena.arq.junit.manifest.Manifests;
+import org.apache.jena.arq.junit.runners.Label;
 import org.apache.jena.arq.junit.runners.RunnerSPARQL;
 import org.apache.jena.sparql.expr.E_Function;
 import org.apache.jena.sparql.expr.NodeValue;
@@ -33,8 +33,7 @@ import org.junit.runner.RunWith;
 @Manifests({
     "testing/ARQ/Syntax/manifest-syntax.ttl" ,
     "testing/ARQ/manifest-arq.ttl" ,
-    "testing/ARQ/Serialization/manifest.ttl" ,
-    "testing/ARQ/RDF-star/SPARQL-star/manifest.ttl"
+    "testing/ARQ/Serialization/manifest.ttl"
 })
 public class Scripts_ARQ
 {

@@ -18,9 +18,9 @@
 
 package org.apache.jena.riot.system;
 
-import org.junit.runner.RunWith ;
-import org.junit.runners.Suite ;
-import org.junit.runners.Suite.SuiteClasses ;
+import org.junit.runner.RunWith;
+import org.junit.runners.Suite;
+import org.junit.runners.Suite.SuiteClasses;
 
 /**
  * Test suite for RIOT system
@@ -35,6 +35,7 @@ import org.junit.runners.Suite.SuiteClasses ;
 
     // Prefix Map implementations
     , TestPrefixMap.class
+    , TestPrefixMapOverPrefixMapping.class
     , TestPrefixMapWrapper.class
     , TestPrefixMapOther.class
 
@@ -44,6 +45,9 @@ import org.junit.runners.Suite.SuiteClasses ;
     , TestFormatRegistration.class
     , TestJsonLDReadWrite.class         // Some simple testing of the jsonld-java engine.
     , TestSerializable.class
+    , TestIRIxRIOT.class
+    , TestRiotLib.class
+    , TestAsyncParser.class
 })
 
 public class TS_RiotSystem

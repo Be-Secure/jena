@@ -27,17 +27,24 @@ import org.apache.jena.graph.Node ;
 import org.apache.jena.graph.Triple ;
 import org.apache.jena.query.* ;
 import org.apache.jena.rdf.model.* ;
+import org.apache.jena.shared.PropertyNotFoundException;
 import org.apache.jena.sparql.util.NotUniqueException ;
 import org.apache.jena.sparql.util.PropertyRequiredException ;
 import org.apache.jena.sparql.util.QueryExecUtils;
 import org.apache.jena.sparql.util.TypeNotUniqueException ;
 import org.apache.jena.util.iterator.ExtendedIterator ;
+import org.apache.jena.util.iterator.NiceIterator;
 import org.apache.jena.vocabulary.RDF ;
 
 /** Graph utilities. See also GraphFactory. */
 
 public class GraphUtils {
 
+    // Only used by DatasetDescriptionAssembler
+    // (and DatasetDescriptionAssembler itself is unused)
+    /**
+     * Get all the literals for a resource-property.
+     */
     public static List<String> multiValueString(Resource r, Property p) {
         List<RDFNode> nodes = multiValue(r, p) ;
         List<String> values = new ArrayList<>() ;
@@ -132,24 +139,42 @@ public class GraphUtils {
         return true ;
     }
 
-    public static String getStringValue(Resource r, Property p) {
-        if ( !atmostOneProperty(r, p) )
+    public static boolean getBooleanValue(Resource r, Property p) {
+        if ( !GraphUtils.atmostOneProperty(r, p) )
             throw new NotUniqueException(r, p) ;
         Statement s = r.getProperty(p) ;
         if ( s == null )
-            return null ;
-        return s.getString() ;
+            throw new PropertyNotFoundException(p);
+        return s.getBoolean();
     }
 
+    /** Get a string literal. */
+    public static String getStringValue(Resource r, Property p) {
+        RDFNode obj = getAsRDFNode(r, p);
+        if ( obj == null )
+            return null;
+        return obj.asLiteral().getString();
+    }
+
+    /** Get a string literal or a URI as a string. */
     public static String getAsStringValue(Resource r, Property p) {
+        RDFNode obj = getAsRDFNode(r, p);
+        if ( obj == null )
+            return null;
+        if ( obj.isResource() )
+            return obj.asResource().getURI() ;
+        if ( obj.isLiteral() )
+            return obj.asLiteral().getString();
+        throw new UnsupportedOperationException("Not a URI or a string");
+    }
+
+    public static RDFNode getAsRDFNode(Resource r, Property p) {
         if ( !atmostOneProperty(r, p) )
             throw new NotUniqueException(r, p) ;
         Statement s = r.getProperty(p) ;
         if ( s == null )
             return null ;
-        if ( s.getObject().isResource() )
-            return s.getResource().getURI() ;
-        return s.getString() ;
+        return s.getObject();
     }
 
     public static Resource getResourceValue(Resource r, Property p) {
@@ -184,7 +209,7 @@ public class GraphUtils {
         QuerySolutionMap qsm = new QuerySolutionMap() ;
         qsm.add("ATYPE", atype) ;
 
-        try(QueryExecution qExec = QueryExecutionFactory.create(q, model, qsm)) {
+        try(QueryExecution qExec = QueryExecution.model(model).query(q).initialBinding(qsm).build() ) {
             return (Resource)QueryExecUtils.getAtMostOne(qExec, "root") ;
         }
     }
@@ -197,7 +222,7 @@ public class GraphUtils {
         Query q = QueryFactory.create(s) ;
         QuerySolutionMap qsm = new QuerySolutionMap() ;
         qsm.add("ATYPE", atype) ;
-        try(QueryExecution qExec = QueryExecutionFactory.create(q, model, qsm)) {
+        try(QueryExecution qExec = QueryExecution.model(model).query(q).initialBinding(qsm).build() ) {
             return ListUtils.toList(
                     QueryExecUtils.getAll(qExec, "root").stream().map(r->(Resource)r));
 
@@ -210,14 +235,42 @@ public class GraphUtils {
 
     /** All subjects and objects, no duplicates. */
     public static Iterator<Node> allNodes(Graph graph) {
-        Set<Node> x = new HashSet<>(1000) ;
         ExtendedIterator<Triple> iter = graph.find(Node.ANY, Node.ANY, Node.ANY) ;
-        for ( ; iter.hasNext() ; ) {
-            Triple t = iter.next() ;
-            x.add(t.getSubject()) ;
-            x.add(t.getObject()) ;
+        IterSO iterSO = new IterSO(iter);
+        Iterator<Node> distinctIterator = Iter.distinct(iterSO);
+        return distinctIterator;
+    }
+
+    static class IterSO extends NiceIterator<Node> {
+        private ExtendedIterator<Triple> it;
+        private boolean tripleConsumed;
+        private Triple triple;
+
+        IterSO(ExtendedIterator<Triple> it) {
+            this.it = it;
+            this.tripleConsumed = true;
         }
-        iter.close() ;
-        return x.iterator() ;
+
+        @Override
+        public void close() {
+            it.close();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return !this.tripleConsumed || it.hasNext();
+        }
+
+        @Override
+        public Node next() {
+            if (this.tripleConsumed) {
+                triple = it.next();
+                tripleConsumed = false;
+                return triple.getSubject();
+            } else {
+                tripleConsumed = true;
+                return triple.getObject();
+            }
+        }
     }
 }

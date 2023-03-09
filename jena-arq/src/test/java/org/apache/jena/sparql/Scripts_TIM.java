@@ -18,9 +18,9 @@
 
 package org.apache.jena.sparql;
 
-import org.apache.jena.arq.junit.manifest.Label;
 import org.apache.jena.arq.junit.manifest.Manifests;
 import org.apache.jena.arq.junit.manifest.Prefix;
+import org.apache.jena.arq.junit.runners.Label;
 import org.apache.jena.query.ARQ;
 import org.apache.jena.sparql.expr.E_Function;
 import org.apache.jena.sparql.expr.NodeValue;
@@ -35,7 +35,7 @@ import org.junit.runner.RunWith;
 @Manifests
 ({
     "testing/ARQ/manifest-arq.ttl" ,
-    "testing/ARQ/RDF-star/SPARQL-star/manifest.ttl"
+    "testing/rdf-star-cg/sparql/eval/manifest.ttl"
 })
 
 public class Scripts_TIM

@@ -24,4 +24,7 @@ public class FusekiConfigException extends FusekiException
     public FusekiConfigException(String msg)                     { super(msg); }
     public FusekiConfigException(Throwable cause)                { super(cause); }
     public FusekiConfigException()                               { super(); }
+
+//    @Override
+//    public FusekiException fillInStackTrace() { return this; }
 }

@@ -20,8 +20,12 @@ package org.apache.jena.atlas.iterator;
 
 import java.util.Iterator;
 
-public class IteratorWrapper<T> implements Iterator<T> {
+public class IteratorWrapper<T> implements IteratorCloseable<T> {
     protected final Iterator<T> iterator;
+
+    protected Iterator<T> get() {
+        return iterator;
+    }
 
     public IteratorWrapper(Iterator<T> iterator) {
         this.iterator = iterator;
@@ -29,16 +33,21 @@ public class IteratorWrapper<T> implements Iterator<T> {
 
     @Override
     public boolean hasNext() {
-        return iterator.hasNext();
+        return get().hasNext();
     }
 
     @Override
     public T next() {
-        return iterator.next();
+        return get().next();
     }
 
     @Override
     public void remove() {
-        iterator.remove();
+        get().remove();
+    }
+
+    @Override
+    public void close() {
+        Iter.close(iterator);
     }
 }

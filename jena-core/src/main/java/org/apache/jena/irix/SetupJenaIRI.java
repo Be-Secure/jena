@@ -27,10 +27,6 @@ import org.apache.jena.iri.impl.PatternCompiler;
 /** Setup of jena-iri package IRI Factory for parsing and for checking. */
 public class SetupJenaIRI {
 
-    // Currently, the same.
-    // The difference is the treatment in IRIProviderJenaIRI and ParserProfileStd.internalMakeIRI
-    // both of which can be scheme and component sensitive.
-
     private static final IRIFactory iriFactoryInst = setupIRIFactory();
     private static final IRIFactory iriCheckerInst = setupCheckerIRIFactory();
 
@@ -43,11 +39,6 @@ public class SetupJenaIRI {
         return iriFactoryInst;
     }
 
-    public static IRIFactory iriFactory_RDFXML() {
-        // Used in ReaderRiotRDFXML
-        return iriFactory();
-    }
-
     /**
      * An IRIFactory with more detailed warnings.
      */
@@ -55,16 +46,15 @@ public class SetupJenaIRI {
         return iriCheckerInst;
     }
 
-    // Currently the same factory.
-    // The difference is the treatment in IRIProviderJenaIRI and ParserProfileStd.internalMakeIRI
-    // both of which can be scheme and component sensitive.
-
     /*package*/ static final IRIFactory setupIRIFactory() {
         return setupCheckerIRIFactory();
     }
 
     /** IRI Factory with "checker" settings. */
     /*package*/ static final IRIFactory setupCheckerIRIFactory() {
+        // See IRIProviderJenaIRI.exceptions for context specific tuning.
+        // See Checker.iriViolations for filtering and output from parsers.
+
         IRIFactory iriCheckerFactory = new IRIFactory();
 
         //iriCheckerInst.shouldViolation(false,true);
@@ -81,6 +71,9 @@ public class SetupJenaIRI {
 
         // -- Scheme specific rules.
         setErrorWarning(iriCheckerFactory, ViolationCodes.SCHEME_PATTERN_MATCH_FAILED, false, true);
+        // jena-iri produces an error for PROHIBITED_COMPONENT_PRESENT regardless.
+        // See Checker.iriViolations for handling this
+        //setErrorWarning(iriCheckerFactory, ViolationCodes.PROHIBITED_COMPONENT_PRESENT, false, true);
 
         // == Scheme
         setErrorWarning(iriCheckerFactory, ViolationCodes.UNREGISTERED_IANA_SCHEME, false, false);
@@ -104,7 +97,6 @@ public class SetupJenaIRI {
 
         // == Path
         setErrorWarning(iriCheckerFactory, ViolationCodes.NON_INITIAL_DOT_SEGMENT, false, false);
-
 
         // == Character related.
         //setErrorWarning(iriFactoryInst, ViolationCodes.NOT_NFC,  false, false);

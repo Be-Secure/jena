@@ -28,8 +28,8 @@ import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.sparql.ARQException;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.core.DatasetGraphFactory;
+import org.apache.jena.sparql.core.DatasetGraphOne;
 import org.apache.jena.sparql.core.DatasetImpl;
-import org.apache.jena.sparql.core.DatasetOne;
 import org.apache.jena.sparql.core.assembler.DatasetAssembler;
 import org.apache.jena.sparql.util.DatasetUtils;
 import org.apache.jena.sparql.util.graph.GraphUtils;
@@ -72,14 +72,13 @@ public class DatasetFactory {
 	/**
 	 * Create a general-purpose  {@link Dataset}.<br/>
 	 * Any graphs needed are in-memory unless explicitly added with {@link Dataset#addNamedModel}.
-	 * </p>
+	 * <p>
 	 * This dataset type can contain graphs from any source when added via {@link Dataset#addNamedModel}.
 	 * These are held as links to the supplied graph and not copied.
 	 * <p>
 	 * <em>This dataset does not support the graph indexing feature of jena-text.</em>
      * <p>
 	 * This dataset does not support serialized transactions (it only provides MRSW locking).
-	 * <p>
 	 *
 	 * @see #createTxnMem
 	 * @return a general-purpose Dataset
@@ -126,8 +125,15 @@ public class DatasetFactory {
      */
     public static Dataset wrap(Model model) {
         Objects.requireNonNull(model, "Can't wrap a null Model reference") ;
-        return DatasetOne.create(model);
+        return wrap(DatasetGraphOne.create(model.getGraph()));
     }
+
+    /**
+     * An always empty {@link Dataset}.
+     * It has one graph (the default graph) with zero triples.
+     * No changes allowed - this is not a sink.
+     */
+    public static Dataset empty() { return wrap(DatasetGraphFactory.empty()); }
 
     /**
 	 * @param uriList URIs merged to form the default dataset

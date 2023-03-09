@@ -35,6 +35,8 @@ import org.apache.jena.sparql.expr.aggregate.lib.* ;
 import org.apache.jena.update.* ;
 import org.apache.jena.sparql.modify.request.* ;
 import org.apache.jena.sparql.core.Quad ;
+import java.util.List;
+import java.util.ArrayList;
 public class ARQParser extends ARQParserBase
 {}
 PARSER_END(ARQParser)
@@ -613,6 +615,8 @@ Element GraphPatternNotTriples() : { Element el = null ; }
  |
    el = OptionalGraphPattern()
  |
+   el = LateralGraphPattern()
+ |
    el = MinusGraphPattern()
  |
    el = GraphGraphPattern()
@@ -636,6 +640,10 @@ Element GraphPatternNotTriples() : { Element el = null ; }
 Element OptionalGraphPattern() : { Element el ; }
 { <OPTIONAL> el = GroupGraphPattern()
     { return new ElementOptional(el) ; }
+}
+Element LateralGraphPattern() : { Element el ; }
+{ <LATERAL> el = GroupGraphPattern()
+    { return new ElementLateral(el) ; }
 }
 Element GraphGraphPattern() : { Element el ; Node n ;}
 {
@@ -1341,6 +1349,10 @@ Expr MultiplicativeExpression() : { Expr expr1, expr2 ; }
     { expr1 = new E_Multiply(expr1, expr2) ; }
   | <SLASH> expr2 = UnaryExpression()
     { expr1 = new E_Divide(expr1, expr2) ; }
+  | <MOD> expr2 = UnaryExpression()
+    { expr1 = new E_OpNumericMod(expr1, expr2) ; }
+  | <IDIV> expr2 = UnaryExpression()
+    { expr1 = new E_OpNumericIntegerDivide(expr1, expr2) ; }
   )*
     { return expr1 ; }
 }
@@ -1361,8 +1373,28 @@ Expr PrimaryExpression() : { Expr expr ; Node n ; }
   | n = NumericLiteral() { return asExpr(n) ; }
   | n = BooleanLiteral() { return asExpr(n) ; }
   | n = Var() { return asExpr(n) ; }
-  | n = TripleTerm() { return asExpr(n) ; }
+  | n = ExprTripleTerm() { return asExpr(n) ; }
   )
+}
+Node ExprVarOrTerm() : { Node n; String s;}
+{
+  ( s = iri() { n = createNode(s); }
+  | n = RDFLiteral()
+  | n = NumericLiteral()
+  | n = BooleanLiteral()
+  | n = Var()
+  | n = ExprTripleTerm()
+  )
+  { return n; }
+}
+Node ExprTripleTerm() : { Token t ; Node s,p,o,n; }
+{ t = <LT2>
+  s = ExprVarOrTerm()
+  p = Verb()
+  o = ExprVarOrTerm()
+  { n = createTripleTerm(s, p, o, t.beginLine, t.beginColumn); }
+  <GT2>
+  { return n; }
 }
 Expr BrackettedExpression() : { Expr expr ; }
 {
@@ -1385,21 +1417,23 @@ Expr BuiltInCall() : { Expr expr ;
     { return new E_Datatype(expr) ; }
   | <BOUND> <LPAREN> gn = Var() <RPAREN>
     { return new E_Bound(new ExprVar(gn)) ; }
-  | <IRI> <LPAREN> expr = Expression() <RPAREN>
-    { return new E_IRI(expr) ; }
-  | <URI> <LPAREN> expr = Expression() <RPAREN>
-    { return new E_URI(expr) ; }
+  | <IRI> <LPAREN> expr1 = Expression() (<COMMA> expr2 = Expression())? <RPAREN>
+    { return makeFunction_IRI(expr1, expr2) ; }
+  | <URI> <LPAREN> expr1 = Expression() (<COMMA> expr2 = Expression())? <RPAREN>
+    { return makeFunction_URI(expr1, expr2) ; }
   | <BNODE>
     ( <LPAREN> expr1 = Expression() <RPAREN>
-      { return new E_BNode(expr1) ; }
+      { return makeFunction_BNode(expr1) ; }
     |
-      <NIL> { return new E_BNode() ; }
+      <NIL> { return makeFunction_BNode() ; }
     )
   | <RAND> <NIL> { return new E_Random() ; }
   | <ABS> <LPAREN> expr1 = Expression() <RPAREN> { return new E_NumAbs(expr1) ; }
   | <CEIL> <LPAREN> expr1 = Expression() <RPAREN> { return new E_NumCeiling(expr1) ; }
   | <FLOOR> <LPAREN> expr1 = Expression() <RPAREN> { return new E_NumFloor(expr1) ; }
   | <ROUND> <LPAREN> expr1 = Expression() <RPAREN> { return new E_NumRound(expr1) ; }
+  | <MOD> <LPAREN> expr1 = Expression() <COMMA> expr2 = Expression() <RPAREN> { return new E_OpNumericMod(expr1, expr2); }
+  | <IDIV> <LPAREN> expr1 = Expression() <COMMA> expr2 = Expression() <RPAREN> { return new E_OpNumericIntegerDivide(expr1, expr2); }
   | <CONCAT> a = ExpressionList() { return new E_StrConcat(a) ; }
   | expr = SubstringExpression() { return expr ; }
   | <STRLEN> <LPAREN> expr1 = Expression() <RPAREN> { return new E_StrLength(expr1) ; }
@@ -1425,6 +1459,9 @@ Expr BuiltInCall() : { Expr expr ;
   | <SECONDS> <LPAREN> expr1 = Expression() <RPAREN> { return new E_DateTimeSeconds(expr1) ; }
   | <TIMEZONE> <LPAREN> expr1 = Expression() <RPAREN> { return new E_DateTimeTimezone(expr1) ; }
   | <TZ> <LPAREN> expr1 = Expression() <RPAREN> { return new E_DateTimeTZ(expr1) ; }
+  | <ADJUST>
+    <LPAREN> expr1 = Expression() (<COMMA> expr2 = Expression())? <RPAREN>
+    { return new E_AdjustToTimezone(expr1, expr2) ; }
   | <NOW> <NIL> { return new E_Now() ; }
   | <UUID> <NIL> { return new E_UUID() ; }
   | <STRUUID> <NIL> { return new E_StrUUID() ; }
@@ -1470,7 +1507,7 @@ Expr BuiltInCall() : { Expr expr ;
   | <IS_TRIPLE> <LPAREN> expr = Expression() <RPAREN>
     { return new E_IsTriple(expr) ; }
   | <TRIPLE> <LPAREN> expr1 = Expression() <COMMA> expr2 = Expression() <COMMA> expr3 = Expression() <RPAREN>
-    { return new E_TripleTerm(expr1, expr2, expr3) ; }
+    { return new E_TripleFn(expr1, expr2, expr3) ; }
   | <SUBJECT> <LPAREN> expr = Expression() <RPAREN>
     { return new E_TripleSubject(expr) ; }
   | <PREDICATE> <LPAREN> expr = Expression() <RPAREN>
@@ -1757,6 +1794,7 @@ TOKEN [IGNORE_CASE] :
 | < SUBJECT: "SUBJECT" >
 | < PREDICATE: "PREDICATE" >
 | < OBJECT: "OBJECT" >
+| < LATERAL: "LATERAL" >
 | < EXISTS: "exists" >
 | < NOT: "not" >
 | < AS: "as" >
@@ -1809,6 +1847,8 @@ TOKEN [IGNORE_CASE] :
 | < CEIL: "CEIL" >
 | < FLOOR: "FLOOR" >
 | < ROUND: "ROUND" >
+| < MOD: "MOD" >
+| < IDIV: "IDIV" >
 | < CONCAT: "CONCAT" >
 | < SUBSTR: "SUBSTR" >
 | < STRLEN: "STRLEN" >
@@ -1829,6 +1869,7 @@ TOKEN [IGNORE_CASE] :
 | < SECONDS: "SECONDS" >
 | < TIMEZONE: "TIMEZONE" >
 | < TZ: "TZ" >
+| < ADJUST: "ADJUST" >
 | < NOW: "NOW" >
 | < UUID: "UUID" >
 | < STRUUID: "STRUUID" >

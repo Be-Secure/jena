@@ -27,13 +27,15 @@ import org.apache.jena.atlas.AtlasException;
 import org.slf4j.Logger;
 
 /**
- * Setup and control of logging - needs access to log4j2 binaries.
+ * Setup and control of logging.
  * Sources of configuration:
  * <ul>
  * <li>Standard setup (e.g. for log4j2, property {@code log4j.configurationFile}
  * <li>jena-cmds: the shell scripts set logging to "apache-jena/log4j2.properties." (uses stderr)
  * <li>Default logging for log4j2: java resource src/main/resources/log4j-jena.properties (uses stdout)
  * </ul>
+ * @implNote
+ * This needs access to log4j2 binaries including log4j-core, which is encapsulated in LogCtlLog4j2.
  */
 public class LogCtl {
     private static final boolean hasLog4j2 = hasClass("org.apache.logging.slf4j.Log4jLoggerFactory");
@@ -141,14 +143,7 @@ public class LogCtl {
             level = org.apache.logging.log4j.Level.FATAL;
         else if ( levelName.equalsIgnoreCase("OFF") )
             level = org.apache.logging.log4j.Level.OFF;
-        try {
-            if ( !logger.equals("") )
-                org.apache.logging.log4j.core.config.Configurator.setLevel(logger, level);
-            else
-                org.apache.logging.log4j.core.config.Configurator.setRootLevel(level);
-        } catch (NoClassDefFoundError ex) {
-            Log.warnOnce(LogCtl.class, "Log4j2 Configurator not found", LogCtl.class);
-        }
+        LogCtlLog4j2.setLoggerlevel(logger, level);
     }
 
     /**
@@ -288,18 +283,42 @@ public class LogCtl {
 
     private static final String[] log4j2files = {"log4j2.properties", "log4j2.xml"};
 
+    private static final boolean LogLogging =
+            System.getenv("JENA_LOGLOGGING") != null ||
+            System.getProperty("jena.loglogging") != null;
+
+    private static void logLogging(String str) {
+        if ( LogLogging ) {
+            System.err.print("Fuseki Logging: ");
+            System.err.println(str);
+        }
+    }
+
+//    private static void logLogging(String fmt, Object ... args) {
+//        if ( LogLogging ) {
+//            System.err.print("Fuseki Logging: ");
+//            System.err.printf(fmt, args);
+//            System.err.println();
+//        }
+//    }
+
     /**
      * Setup log4j2, including looking for a file "log4j2.properties" or "log4j2.xml"
      * in the current working directory.
      * @see #setLogging()
      */
     public static void setLog4j2() {
+        logLogging("Ensure Log4j2 setup");
         if ( ! isSetLog4j2property() ) {
             setLog4j2property();
-            if ( isSetLog4j2property() )
+            if ( isSetLog4j2property() ) {
                 return;
+            }
             // Nothing found - built-in default.
+            logLogging("Log4j2: built-in default");
             LogCtlLog4j2.resetLogging(LogCtlLog4j2.log4j2setup);
+        } else {
+            logLogging("Ready set: "+log4j2ConfigProperty+"="+System.getProperty(log4j2ConfigProperty));
         }
     }
 
@@ -328,8 +347,12 @@ public class LogCtl {
      * Setup java.util.logging if it has not been set before; otherwise do nothing.
      */
     public static void setJavaLogging() {
-        if ( System.getProperty(JUL_PROPERTY) != null )
+        logLogging("Ensure java.util.logging setup");
+        if ( System.getProperty(JUL_PROPERTY) != null ) {
+            logLogging(JUL_PROPERTY+"="+System.getProperty(JUL_PROPERTY));
             return;
+        }
+        logLogging("java.util.logging reset logging");
         LogCtlJUL.resetJavaLogging();
     }
 
@@ -344,6 +367,17 @@ public class LogCtl {
             LogCtlJUL.readJavaLoggingConfiguration(details);
         } catch (Exception ex) {
             throw new AtlasException(ex);
+        }
+    }
+
+    /** Execute with a given logging level. */
+    public static void withLevel(Logger logger, String execLevel, Runnable action) {
+        String currentLevel = getLevel(logger);
+        try {
+            setLevel(logger, execLevel);
+            action.run();
+        } finally {
+            setLevel(logger, currentLevel);
         }
     }
 }

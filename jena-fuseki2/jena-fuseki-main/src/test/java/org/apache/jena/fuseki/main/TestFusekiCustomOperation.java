@@ -22,6 +22,7 @@ import static org.apache.jena.fuseki.main.FusekiTestLib.expectFail;
 import static org.junit.Assert.*;
 
 import java.io.IOException;
+import java.net.http.HttpRequest.BodyPublishers;
 import java.nio.charset.StandardCharsets;
 
 import org.apache.commons.io.IOUtils;
@@ -32,15 +33,15 @@ import org.apache.jena.atlas.web.HttpException;
 import org.apache.jena.atlas.web.TypedInputStream;
 import org.apache.jena.atlas.web.WebLib;
 import org.apache.jena.fuseki.FusekiConfigException;
-import org.apache.jena.fuseki.build.FusekiConfig;
 import org.apache.jena.fuseki.build.FusekiExt;
 import org.apache.jena.fuseki.server.DataService;
+import org.apache.jena.fuseki.server.Endpoint;
 import org.apache.jena.fuseki.server.Operation;
 import org.apache.jena.fuseki.server.OperationRegistry;
 import org.apache.jena.fuseki.servlets.ActionService;
 import org.apache.jena.fuseki.servlets.HttpAction;
+import org.apache.jena.http.HttpOp;
 import org.apache.jena.riot.WebContent;
-import org.apache.jena.riot.web.HttpOp;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.core.DatasetGraphFactory;
 import org.apache.jena.web.HttpSC;
@@ -58,10 +59,10 @@ public class TestFusekiCustomOperation {
         new CustomTestService() {
         @Override
         protected void doGet(HttpAction action) {
-            action.response.setStatus(HttpSC.OK_200);
+            action.setResponseStatus(HttpSC.OK_200);
             try {
-                action.response.setContentType(WebContent.contentTypeTextPlain);
-                action.response.getOutputStream().print(customHandlerBodyGet);
+                action.setResponseContentType(WebContent.contentTypeTextPlain);
+                action.getResponseOutputStream().print(customHandlerBodyGet);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -69,16 +70,16 @@ public class TestFusekiCustomOperation {
 
         @Override
         protected void doHead(HttpAction action) {
-            action.response.setStatus(HttpSC.OK_200);
-            action.response.setContentType(WebContent.contentTypeTextPlain);
+            action.setResponseStatus(HttpSC.OK_200);
+            action.setResponseContentType(WebContent.contentTypeTextPlain);
         }
 
         @Override
         protected void doPost(HttpAction action) {
-            action.response.setStatus(HttpSC.OK_200);
+            action.setResponseStatus(HttpSC.OK_200);
             try {
-                action.response.setContentType(WebContent.contentTypeTextPlain);
-                action.response.getOutputStream().print(customHandlerBodyPost);
+                action.setResponseContentType(WebContent.contentTypeTextPlain);
+                action.getResponseOutputStream().print(customHandlerBodyPost);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -94,15 +95,18 @@ public class TestFusekiCustomOperation {
         // Create a DataService and add the endpoint -> operation association.
         // This still needs the server to have the operation registered.
         DatasetGraph dsg = DatasetGraphFactory.createTxnMem();
-        DataService dataService = new DataService(dsg);
-        FusekiConfig.populateStdServices(dataService, true);
         try {
             FusekiExt.registerOperation(newOp, customHandler);
             assertTrue(OperationRegistry.get().isRegistered(newOp));
-
-            FusekiConfig.addServiceEP(dataService, newOp, endpointName);
-            FusekiServer server = FusekiServer.create().port(port).registerOperation(newOp, contentType, customHandler)
-                .add("/ds", dataService).build();
+            Endpoint endpoint = Endpoint.create(newOp, endpointName);
+            DataService dataService = DataService.newBuilder(dsg)
+                    .withStdServices(true)
+                    .addEndpoint(endpoint)
+                    .build();
+            FusekiServer server = FusekiServer.create().port(port)
+                    .registerOperation(newOp, contentType, customHandler)
+                    .add("/ds", dataService)
+                    .build();
             testServer(server, url, endpointName, true, false);
         }
         finally {
@@ -116,15 +120,19 @@ public class TestFusekiCustomOperation {
         // Create a DataService and add the endpoint -> operation association.
         // This still needs the server to have the operation registered.
         DatasetGraph dsg = DatasetGraphFactory.createTxnMem();
-        DataService dataService = new DataService(dsg);
-        FusekiConfig.populateStdServices(dataService, true);
         try {
             FusekiExt.registerOperation(newOp, customHandler);
             assertTrue(OperationRegistry.get().isRegistered(newOp));
 
-            FusekiConfig.addServiceEP(dataService, newOp, null);
-            FusekiServer server = FusekiServer.create().port(port).registerOperation(newOp, contentType, customHandler)
-                .add("/ds", dataService).build();
+            Endpoint endpoint = Endpoint.create(newOp, null);
+            DataService dataService = DataService.newBuilder(dsg)
+                    .withStdServices(true)
+                    .addEndpoint(endpoint)
+                    .build();
+            FusekiServer server = FusekiServer.create().port(port)
+                    .registerOperation(newOp, contentType, customHandler)
+                    .add("/ds", dataService)
+                    .build();
             // No endpoint name dispatch - content-type required.
             testServer(server, url, "", false, true);
         }
@@ -202,7 +210,7 @@ public class TestFusekiCustomOperation {
                 testServerCT(server, svcCall);
 
             // DELETE -> fails
-            int statusCode = expectFail(() -> HttpOp.execHttpDelete(svcCall));
+            int statusCode = expectFail(() -> HttpOp.httpDelete(svcCall));
             switch (statusCode) {
                 // Acceptable.
                 case HttpSC.BAD_REQUEST_400 :
@@ -220,7 +228,7 @@ public class TestFusekiCustomOperation {
 
     private static void testServerCT(FusekiServer server, String svcCall) {
         // Content-type
-        try (TypedInputStream stream = HttpOp.execHttpPostStream(svcCall, contentType, "", "text/plain")) {
+        try (TypedInputStream stream = HttpOp.httpPostStream(svcCall, contentType, BodyPublishers.ofString(""), "text/plain")) {
             assertNotNull(stream);
             String x = IOUtils.toString(stream, StandardCharsets.UTF_8);
             assertValidResponseBody(customHandlerBodyPost, x);
@@ -231,13 +239,13 @@ public class TestFusekiCustomOperation {
 
     private static void testServerNoCT(FusekiServer server, String svcCall) {
         // Service endpoint name : GET
-        String s1 = HttpOp.execHttpGetString(svcCall);
+        String s1 = HttpOp.httpGetString(svcCall);
         if ( s1 == null )
-            throw new HttpException(HttpSC.NOT_FOUND_404, "Not Found", "");
+            throw new HttpException(HttpSC.NOT_FOUND_404, "Not Found");
         assertValidResponseBody(customHandlerBodyGet, s1);
 
         // Service endpoint name : POST
-        try (TypedInputStream stream = HttpOp.execHttpPostStream(svcCall, "ignored", "", "text/plain")) {
+        try (TypedInputStream stream = HttpOp.httpPostStream(svcCall, "ignored", BodyPublishers.ofString(""), "text/plain")) {
             assertNotNull(stream);
             String x = IOUtils.toString(stream, StandardCharsets.UTF_8);
             assertValidResponseBody(customHandlerBodyPost, x);

@@ -65,6 +65,16 @@ public class QueryExecTest implements Runnable {
     private final SPARQLResult results;
     private final QueryTestItem testItem;
     private final Creator<Dataset> creator;
+    /**
+     * Whether to test result sets "by value" or "by term".
+     * <p>
+     * Normally "true" - test by value.
+     * <ul>
+     * <li>Some SPARQL tests are value/test sensitive.
+     * <li>TDB stores literals in value format and rebuilds canonical lexical terms.
+     * </ul>
+     */
+    public static boolean compareResultSetsByValue = true;
 
     public QueryExecTest(ManifestEntry entry, Creator<Dataset> maker) {
         testEntry = entry;
@@ -139,7 +149,7 @@ public class QueryExecTest implements Runnable {
                 return createDataset(testItem.getDefaultGraphURIs(), testItem.getNamedGraphURIs());
 
             if ( !doesQueryHaveDataset(query) )
-                setupFailure("No dataset");
+                return DatasetFactory.createTxnMem();
 
             // Left to query
             return null;
@@ -268,7 +278,7 @@ public class QueryExecTest implements Runnable {
             }
             bindings.add(builder.build());
         }
-        ResultSet rs = new ResultSetStream(resultsActual.getResultVars(), null, new QueryIterPlainWrapper(bindings.iterator()));
+        ResultSet rs = ResultSetStream.create(resultsActual.getResultVars(), null, QueryIterPlainWrapper.create(bindings.iterator()));
         return rs.rewindable();
     }
 
@@ -284,14 +294,13 @@ public class QueryExecTest implements Runnable {
             seen.add(b);
             x.add(b);
         }
-        QueryIterator qIter = new QueryIterPlainWrapper(x.iterator());
-        ResultSet rs = new ResultSetStream(results.getResultVars(), ModelFactory.createDefaultModel(), qIter);
+        QueryIterator qIter = QueryIterPlainWrapper.create(x.iterator());
+        ResultSet rs = ResultSetStream.create(results.getResultVars(), null, qIter);
         return rs.rewindable();
     }
 
     private static boolean resultSetEquivalent(Query query, ResultSetRewindable resultsExpected, ResultSetRewindable resultsActual) {
-        final boolean testByValue = true;
-        if ( testByValue ) {
+        if ( compareResultSetsByValue ) {
             if ( query.isOrdered() )
                 return ResultSetCompare.equalsByValueAndOrder(resultsExpected, resultsActual);
             else

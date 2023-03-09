@@ -26,180 +26,173 @@ import org.apache.jena.sparql.util.NodeIsomorphismMap;
  * Class to validate that an element exists in another element structure.
  *
  * The WhereValidator traverses the element tree that it is attempting to match.
- * Once it finds a node that matches the target element an attempt is made to match
- * all elements enclosed by the target.  If a match is found the matcher stops and
- * the <code>matching</code> variable will be <code>true</code>.  if a match is not
- * the matcher continues to scan for the next candidate until a match is found or all
- * candidates are exhausted.
+ * Once it finds a node that matches the target element an attempt is made to
+ * match all elements enclosed by the target. If a match is found the matcher
+ * stops and the <code>matching</code> variable will be <code>true</code>. if a
+ * match is not the matcher continues to scan for the next candidate until a
+ * match is found or all candidates are exhausted.
  *
- * Usage:
- * <code> <pre>
+ * Usage: <pre>
  *  WhereValidator wv = new WhereValidator( target );
  *  query.getQueryPattern().visit( wv );
  *  assertTrue( wv.matching );
- *  </pre></code>
+ *  </pre>
  */
 public class WhereValidator implements ElementVisitor {
 
-	private Element target;
-	public boolean matching = false;
-	private NodeIsomorphismMap nim;
+    private Element target;
+    public boolean matching = false;
+    private NodeIsomorphismMap nim;
 
-	/**
-	 * Constructor.
-	 * @param target The target element to locate.
-	 */
-	public WhereValidator( Element target )
-	{
-		this.target = target;
-		this.nim = new NodeIsomorphismMap();
-	}
+    /**
+     * Constructor.
+     *
+     * @param target The target element to locate.
+     */
+    public WhereValidator(Element target) {
+        this.target = target;
+        this.nim = new NodeIsomorphismMap();
+    }
 
-	private void checkMatching(Element el)
-	{
-		if (!matching)
-		{
-			matching = el.equalTo(target, nim);
-		}
-	}
-
-	@Override
-	public void visit(ElementTriplesBlock el) {
-		checkMatching( el );
-		return;
-	}
-
-	@Override
-	public void visit(ElementPathBlock el) {
-		checkMatching( el );
-		return;
-	}
-
-	@Override
-	public void visit(ElementFilter el) {
-		checkMatching( el );
-		return;
-	}
-
-	@Override
-	public void visit(ElementAssign el) {
-		checkMatching( el );
-		return;
-	}
-
-	@Override
-	public void visit(ElementBind el) {
-		checkMatching( el );
-		return;
-	}
+    private void checkMatching(Element el) {
+        if (!matching) {
+            matching = el.equalTo(target, nim);
+        }
+    }
 
     @Override
-	public void visit(ElementData el) {
-		checkMatching( el );
-		return;
-	}
+    public void visit(ElementTriplesBlock el) {
+        checkMatching(el);
+        return;
+    }
 
-	private void checkList( List<Element> lst )
-	{
-		for (Element e : lst)
-		{
-			e.visit( this );
-			if (matching)
-			{
-				return;
-			}
-		}
-	}
-	@Override
-	public void visit(ElementUnion el) {
-		checkMatching( el );
-		if (!matching)
-		{
-			checkList( el.getElements() );
-		}
-		return;
-	}
+    @Override
+    public void visit(ElementPathBlock el) {
+        checkMatching(el);
+        return;
+    }
 
-	@Override
-	public void visit(ElementOptional el) {
-		checkMatching( el );
-		if (!matching)
-		{
-			el.getOptionalElement().visit(this);
-		}
-	}
+    @Override
+    public void visit(ElementFilter el) {
+        checkMatching(el);
+        return;
+    }
 
-	@Override
-	public void visit(ElementGroup el) {
-		checkMatching( el );
-		if (!matching)
-		{
-			checkList( el.getElements() );
-		}
-	}
+    @Override
+    public void visit(ElementAssign el) {
+        checkMatching(el);
+        return;
+    }
 
-	@Override
-	public void visit(ElementDataset el) {
-		checkMatching( el );
-		if (!matching)
-		{
-			el.getElement().visit( this );
-		}
+    @Override
+    public void visit(ElementBind el) {
+        checkMatching(el);
+        return;
+    }
 
-	}
+    @Override
+    public void visit(ElementData el) {
+        checkMatching(el);
+        return;
+    }
 
-	@Override
-	public void visit(ElementNamedGraph el) {
-		checkMatching( el );
-		if (!matching)
-		{
-			el.getElement().visit( this );
-		}
-	}
+    private void checkList(List<Element> lst) {
+        for (Element e : lst) {
+            e.visit(this);
+            if (matching) {
+                return;
+            }
+        }
+    }
 
-	@Override
-	public void visit(ElementExists el) {
-		checkMatching( el );
-		if (!matching)
-		{
-			el.getElement().visit( this );
-		}
-	}
+    @Override
+    public void visit(ElementUnion el) {
+        checkMatching(el);
+        if (!matching) {
+            checkList(el.getElements());
+        }
+        return;
+    }
 
-	@Override
-	public void visit(ElementNotExists el) {
-		checkMatching( el );
-		if (!matching)
-		{
-			el.getElement().visit( this );
-		}
-	}
+    @Override
+    public void visit(ElementLateral el) {
+        checkMatching(el);
+        if (!matching) {
+            el.getLateralElement().visit(this);
+        }
+    }
 
-	@Override
-	public void visit(ElementMinus el) {
-		checkMatching( el );
-		if (!matching)
-		{
-			el.getMinusElement().visit( this );
-		}
-	}
+    @Override
+    public void visit(ElementOptional el) {
+        checkMatching(el);
+        if (!matching) {
+            el.getOptionalElement().visit(this);
+        }
+    }
 
-	@Override
-	public void visit(ElementService el) {
-		checkMatching( el );
-		if (!matching)
-		{
-			el.getElement().visit( this );
-		}
-	}
+    @Override
+    public void visit(ElementGroup el) {
+        checkMatching(el);
+        if (!matching) {
+            checkList(el.getElements());
+        }
+    }
 
-	@Override
-	public void visit(ElementSubQuery el) {
-		checkMatching( el );
-		if (!matching)
-		{
-			el.getQuery().getQueryPattern().visit(this);
-		}
-	}
+    @Override
+    public void visit(ElementDataset el) {
+        checkMatching(el);
+        if (!matching) {
+            el.getElement().visit(this);
+        }
+
+    }
+
+    @Override
+    public void visit(ElementNamedGraph el) {
+        checkMatching(el);
+        if (!matching) {
+            el.getElement().visit(this);
+        }
+    }
+
+    @Override
+    public void visit(ElementExists el) {
+        checkMatching(el);
+        if (!matching) {
+            el.getElement().visit(this);
+        }
+    }
+
+    @Override
+    public void visit(ElementNotExists el) {
+        checkMatching(el);
+        if (!matching) {
+            el.getElement().visit(this);
+        }
+    }
+
+    @Override
+    public void visit(ElementMinus el) {
+        checkMatching(el);
+        if (!matching) {
+            el.getMinusElement().visit(this);
+        }
+    }
+
+    @Override
+    public void visit(ElementService el) {
+        checkMatching(el);
+        if (!matching) {
+            el.getElement().visit(this);
+        }
+    }
+
+    @Override
+    public void visit(ElementSubQuery el) {
+        checkMatching(el);
+        if (!matching) {
+            el.getQuery().getQueryPattern().visit(this);
+        }
+    }
 
 }

@@ -31,14 +31,13 @@ import org.apache.jena.fuseki.access.DataAccessCtl;
 import org.apache.jena.fuseki.access.SecurityContext;
 import org.apache.jena.fuseki.access.SecurityContextView;
 import org.apache.jena.fuseki.access.SecurityRegistry;
-import org.apache.jena.fuseki.jetty.JettyLib;
 import org.apache.jena.fuseki.main.FusekiServer;
+import org.apache.jena.fuseki.main.JettySecurityLib;
 import org.apache.jena.graph.Node;
 import org.apache.jena.query.QuerySolution;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdfconnection.RDFConnection;
-import org.apache.jena.rdfconnection.RDFConnectionFactory;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.core.DatasetGraphFactory;
 import org.apache.jena.sparql.core.Quad;
@@ -93,12 +92,15 @@ public class TestSecurityFilterFuseki {
         testdsg3 = DataAccessCtl.controlledDataset(testdsg3, reg);
 
         UserStore userStore = userStore();
-        ConstraintSecurityHandler sh = JettyLib.makeSecurityHandler("*", userStore);
-        JettyLib.addPathConstraint(sh, "/*");
+        ConstraintSecurityHandler sh = JettySecurityLib.makeSecurityHandler("*", userStore);
+        JettySecurityLib.addPathConstraint(sh, "/*");
 
+        // If used, also check log4j2.properties.
+        //FusekiLogging.setLogging();
         fusekiServer = FusekiServer.create()
             .securityHandler(sh)
             .port(0)
+            //.verbose(true)
             .add("data1", testdsg1)
             .add("data2", testdsg2)
             .add("data3", testdsg3)
@@ -140,7 +142,7 @@ public class TestSecurityFilterFuseki {
 
     private Set<Node> query(String user, String password, String queryString) {
         Set<Node> results = new HashSet<>();
-        try (RDFConnection conn = RDFConnectionFactory.connectPW(baseUrl, user, password)) {
+        try (RDFConnection conn = RDFConnection.connectPW(baseUrl, user, password)) {
             conn.queryResultSet(queryString, rs->{
                 List<QuerySolution> list = Iter.toList(rs);
                 list.stream()
@@ -232,8 +234,8 @@ public class TestSecurityFilterFuseki {
 
     private Set<Node> gsp(String user, String password, String graphName) {
         Set<Node> results = new HashSet<>();
-        try (RDFConnection conn = RDFConnectionFactory.connectPW(baseUrl, user, password)) {
-            Model model = graphName == null ? conn.fetch() : conn.fetch(graphName);
+        try (RDFConnection conn = RDFConnection.connectPW(baseUrl, user, password)) {
+            Model model = (graphName == null) ? conn.fetch() : conn.fetch(graphName);
             // Extract subjects.
             Set<Node> seen =
                 SetUtils.toSet(

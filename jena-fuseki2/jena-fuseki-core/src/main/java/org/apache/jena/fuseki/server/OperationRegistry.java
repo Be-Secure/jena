@@ -26,6 +26,7 @@ import javax.servlet.ServletContext;
 
 import org.apache.jena.atlas.logging.Log;
 import org.apache.jena.fuseki.Fuseki;
+import org.apache.jena.fuseki.patch.PatchApplyService;
 import org.apache.jena.fuseki.servlets.*;
 import org.apache.jena.riot.WebContent;
 
@@ -43,9 +44,10 @@ public class OperationRegistry {
     // Standard, non-graph-level access control versions.
     private static final ActionService queryServlet    = new SPARQL_QueryDataset();
     private static final ActionService updateServlet   = new SPARQL_Update();
-    private static final ActionService uploadServlet   = new SPARQL_Upload();
+    private static final ActionService uploadServlet   = new UploadRDF();
     private static final ActionService gspServlet_R    = new GSP_R();
     private static final ActionService gspServlet_RW   = new GSP_RW();
+    private static final ActionService rdfPatch        = new PatchApplyService();
     private static final ActionService noOperation     = new NoOpActionService();
     private static final ActionService shaclValidation = new SHACL_Validation();
 
@@ -63,10 +65,13 @@ public class OperationRegistry {
         OperationRegistry stdOpReg = new OperationRegistry();
         stdOpReg.register(Operation.Query,   WebContent.contentTypeSPARQLQuery, queryServlet);
         stdOpReg.register(Operation.Update,  WebContent.contentTypeSPARQLUpdate, updateServlet);
-        stdOpReg.register(Operation.Upload,  null, uploadServlet);
         stdOpReg.register(Operation.GSP_R,   null, gspServlet_R);
         stdOpReg.register(Operation.GSP_RW,  null, gspServlet_RW);
+
+        stdOpReg.register(Operation.Patch,   WebContent.contentTypePatch, rdfPatch);
         stdOpReg.register(Operation.Shacl,   null, shaclValidation);
+        stdOpReg.register(Operation.Upload,  null, uploadServlet);
+
         stdOpReg.register(Operation.NoOp,    null, noOperation);
         return stdOpReg;
     }

@@ -21,15 +21,16 @@ package org.apache.jena.riot;
 import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
+import java.net.http.HttpClient;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
-import org.apache.http.Header;
-import org.apache.http.client.HttpClient;
-import org.apache.http.message.BasicHeader;
 import org.apache.jena.atlas.lib.IRILib;
 import org.apache.jena.graph.BlankNodeId;
 import org.apache.jena.graph.Graph;
+import org.apache.jena.http.HttpEnv;
 import org.apache.jena.irix.IRIs;
 import org.apache.jena.irix.IRIxResolver;
 import org.apache.jena.query.Dataset;
@@ -38,10 +39,9 @@ import org.apache.jena.riot.RDFParser.LangTagForm;
 import org.apache.jena.riot.lang.LabelToNode;
 import org.apache.jena.riot.system.*;
 import org.apache.jena.riot.system.stream.StreamManager;
-import org.apache.jena.riot.web.HttpNames;
-import org.apache.jena.riot.web.HttpOp ;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.util.Context;
+import org.apache.jena.sparql.util.ContextAccumulator;
 import org.apache.jena.sparql.util.Symbol;
 
 /**
@@ -72,13 +72,14 @@ public class RDFParserBuilder {
     // Reusable parser
     private String uri = null;
     private Path path = null;
-    private String content = null;
+    private String stringToParse = null;
     // The not reusable sources.
     private InputStream inputStream;
     private Reader javaReader = null;
     private StreamManager streamManager = null;
 
     // HTTP
+    private String appAcceptHeader = null;
     private Map<String, String> httpHeaders = new HashMap<>();
     private HttpClient httpClient = null;
 
@@ -87,6 +88,7 @@ public class RDFParserBuilder {
     private Lang forceLang = null;
 
     private String baseURI = null;
+    private ContextAccumulator contextAcc = ContextAccumulator.newBuilder(()->RIOT.getContext());
 
     private boolean canonicalValues = false;
     private LangTagForm langTagForm = LangTagForm.NONE;
@@ -96,6 +98,7 @@ public class RDFParserBuilder {
     private boolean strict = SysRIOT.isStrictMode();
     private boolean resolveURIs = true;
     private IRIxResolver resolver = null;
+    private PrefixMap prefixMap = null;
     // ----
 
     // Construction for the StreamRDF
@@ -104,9 +107,6 @@ public class RDFParserBuilder {
 
     // Bad news.
     private ErrorHandler errorHandler = null;
-
-    // Parsing process
-    private Context context = null;
 
     public static RDFParserBuilder create() { return new RDFParserBuilder() ; }
     private RDFParserBuilder() {}
@@ -152,7 +152,7 @@ public class RDFParserBuilder {
      */
     public RDFParserBuilder fromString(String string) {
         clearSource();
-        this.content = string;
+        this.stringToParse = string;
         return this;
     }
 
@@ -222,14 +222,14 @@ public class RDFParserBuilder {
     private void clearSource() {
         this.uri = null;
         this.path = null;
-        this.content = null;
+        this.stringToParse = null;
         this.inputStream = null;
         this.javaReader = null;
     }
 
     /**
      * Set the hint {@link Lang}. This is the RDF syntax used when there is no way to
-     * deduce the syntax (e.g. read from a InputStream, no recognized file extension, no
+     * deduce the syntax (e.g. read from a InputStream, not recognized file extension, no
      * recognized HTTP Content-Type provided).
      *
      * @param lang
@@ -259,9 +259,16 @@ public class RDFParserBuilder {
      * @param acceptHeader
      * @return this
      */
-    public RDFParserBuilder httpAccept(String acceptHeader) {
-        httpHeader(HttpNames.hAccept, acceptHeader);
+    public RDFParserBuilder acceptHeader(String acceptHeader) {
+        // Manage separately because it is set to a default if not provided by the caller.
+        appAcceptHeader = acceptHeader;
         return this;
+    }
+
+    /** @deprecated Use {@link #acceptHeader} */
+    @Deprecated
+    public RDFParserBuilder httpAccept(String acceptHeader) {
+        return acceptHeader(acceptHeader);
     }
 
     /**
@@ -275,21 +282,23 @@ public class RDFParserBuilder {
         return this;
     }
 
-    /** Set the HttpClient to use.
-     *  This will override any HTTP header settings set for this builder.
-     */
-    public RDFParserBuilder httpClient(HttpClient httpClient) {
-        this.httpClient = httpClient;
-        return this;
-    }
+//    /** Set the HttpClient to use.
+//     *  This will override any HTTP header settings set for this builder.
+//     */
+//    public RDFParserBuilder httpClient(HttpClient httpClient) {
+//        this.httpClient = httpClient;
+//        return this;
+//    }
 
     /** Set the base URI for parsing.  The default is to have no base URI. */
     public RDFParserBuilder base(String base) { this.baseURI = base ; return this; }
 
-    /** Choose whether to resolve URIs.<br/>
-     *  This does not affect all languages: N-Triples and N-Quads never resolve URIs.<br/>
-     *  Relative URIs are bad data.<br/>
-     *  Only set this to false for debugging and development purposes.
+    /**
+     * Choose whether to resolve URIs or throw an error.
+     * <p>
+     * This does not affect all languages: N-Triples and N-Quads never resolve URIs.<br/>
+     * If this is flag false, relative URIs cause parse errors.<br/>
+     * Only set this to false for debugging and development purposes.
      */
     public RDFParserBuilder resolveURIs(boolean flag) { this.resolveURIs = flag ; return this; }
 
@@ -300,6 +309,21 @@ public class RDFParserBuilder {
      * RDF syntax to be parsed.
      */
     public RDFParserBuilder resolver(IRIxResolver resolver) { this.resolver = resolver ; return this; }
+
+    /**
+     * Set an initial prefix map for parsing.
+     * <p>
+     * Using this, and {@link #base}, mean that Turtle and TriG fragments can be parsed.
+     * <p>
+     * The caller is responsible for setting any prefixes that are undeclared in the fragment.
+     * <p>
+     * Changes made to the prefix map argument after this call will not be seen by the parser.
+     * Passing null clears any previous setting.
+     */
+    public RDFParserBuilder prefixes(PrefixMap prefixMap) {
+        this.prefixMap = prefixMap == null ? null : PrefixMapFactory.create(prefixMap);
+        return this;
+    }
 
     /**
      * Convert the lexical form of literals to a canonical form.
@@ -374,7 +398,7 @@ public class RDFParserBuilder {
      * is maintained for either lower case or RFC canonicalization styles.
      * <p>
      * This option can slow parsing down.
-     * <p>
+     *
      * @see #langTagCanonical
      */
     public RDFParserBuilder langTagLowerCase() {
@@ -393,7 +417,7 @@ public class RDFParserBuilder {
      * lower case or RFC canonicalization.
      * <p>
      * This option can slow parsing down.
-     * <p>
+     * </p>
      * @see #langTagLowerCase
      */
     public RDFParserBuilder langTagCanonical() {
@@ -498,43 +522,39 @@ public class RDFParserBuilder {
 //        return this;
 //    }
 
-    private void ensureContext() {
-        if ( context == null )
-            context = new Context();
-    }
-
     /**
      * Set the context for the parser when built.
-     *
-     * If a context is already partly set
-     * for this builder, merge the new settings
-     * into the outstanding context.
-     *
-     * If the context argument is null, do nothing.
      *
      * @param context
      * @return this
      * @see Context
      */
     public RDFParserBuilder context(Context context) {
-        if ( context == null )
-            return this;
-        ensureContext();
-        this.context.putAll(context);
+        contextAcc.context(context);
         return this;
     }
 
     /**
-     * Added a setting to the context for the parser when built.
+     * Add a setting to the context for the parser when built.
      * A value of "null" removes a previous setting.
      * @param symbol
      * @param value
      * @return this
-     * @see Context
      */
     public RDFParserBuilder set(Symbol symbol, Object value) {
-        ensureContext();
-        context.put(symbol, value);
+        contextAcc.set(symbol, value);
+        return this;
+    }
+
+
+    /**
+     * Add a setting to the context for the parser when built.
+     * @param symbol
+     * @param value
+     * @return this
+     */
+    public RDFParserBuilder set(Symbol symbol, boolean value) {
+        contextAcc.set(symbol, value);
         return this;
     }
 
@@ -596,6 +616,38 @@ public class RDFParserBuilder {
         build().parse(dataset);
     }
 
+    /**
+     * Parse the source in to a fresh {@link Graph} and return the graph.
+     * <p>
+     * The source must be for triples; any quads are discarded.
+     */
+    public Graph toGraph() {
+        return build().toGraph();
+    }
+
+    /**
+     * Parse the source in to a fresh {@link Model} and return the model.
+     * <p>
+     * The source must be for triples; any quads are discarded.
+     */
+    public Model toModel() {
+        return build().toModel();
+    }
+
+    /**
+     * Parse the source in to a fresh {@link Dataset} and return the dataset.
+     */
+    public Dataset toDataset() {
+        return build().toDataset();
+    }
+
+    /**
+     * Parse the source in to a fresh {@link DatasetGraph} and return the DatasetGraph.
+     */
+    public DatasetGraph toDatasetGraph() {
+        return build().toDatasetGraph();
+    }
+
     /** Build an {@link RDFParser}. The parser takes it's configuration from this builder and can not then be changed.
      * The source must be set.
      * When a parser is used, it is takes the source and sends output to an {@link StreamRDF}.
@@ -611,12 +663,12 @@ public class RDFParserBuilder {
      */
     public RDFParser build() {
         // Build what we can now - some things have to be built in the parser.
-        if ( uri == null && path == null && content == null && inputStream == null && javaReader == null )
+        if ( uri == null && path == null && stringToParse == null && inputStream == null && javaReader == null )
             throw new RiotException("No source specified");
-        if ( context == null )
-            context = RIOT.getContext().copy();
+        Context context = contextAcc.context();
+
         // Setup the HTTP client.
-        HttpClient client = buildHttpClient();
+        HttpClient clientJDK = ( httpClient != null ) ? httpClient : HttpEnv.getDftHttpClient();
         FactoryRDF factory$ = buildFactoryRDF();
         ErrorHandler errorHandler$ = errorHandler;
         if ( errorHandler$ == null )
@@ -642,11 +694,14 @@ public class RDFParserBuilder {
             sMgr = StreamManager.get(context);
 
         // Can't build the profile here as it is Lang/conneg dependent.
-        return new RDFParser(uri, path, content, inputStream, javaReader, sMgr,
-                             client, hintLang, forceLang,
+        return new RDFParser(uri, path, stringToParse, inputStream, javaReader, sMgr,
+                             appAcceptHeader, httpHeaders,
+                             clientJDK,
+                             hintLang, forceLang,
                              parserBaseURI, strict, checking,
                              canonicalValues, langTagForm,
-                             resolveURIs, resolver, factory$, errorHandler$, context);
+                             resolveURIs, resolver, prefixMap,
+                             factory$, errorHandler$, context);
     }
 
     private FactoryRDF buildFactoryRDF() {
@@ -660,28 +715,6 @@ public class RDFParserBuilder {
         return factory$;
     }
 
-    private HttpClient buildHttpClient() {
-        if ( httpClient != null )
-            return httpClient;
-        if ( httpHeaders.isEmpty() )
-            // System default.
-            // In this case, RDFParser will use the current-at-parse-time,
-            // settings of HttpOp, not frozen here. The HTTP step operation will use a
-            // general purpose accept header, WebContent.defaultRDFAcceptHeader, that
-            // gets any syntax of triples or quads. To freeze now to HttpOp settings,
-            // call httpClient(HttpOp.getDefaultHttpClient).
-            return null;
-        List<Header> hdrs = new ArrayList<>();
-        httpHeaders.forEach((k,v)->{
-            Header header = new BasicHeader(k, v);
-            hdrs.add(header);
-        });
-        HttpClient hc = HttpOp.createPoolingHttpClientBuilder()
-            .setDefaultHeaders(hdrs)
-            .build() ;
-        return hc ;
-    }
-
     /**
      * Duplicate this builder with current settings.
      * Changes to setting to this builder do not affect the clone.
@@ -691,14 +724,15 @@ public class RDFParserBuilder {
         RDFParserBuilder builder = new RDFParserBuilder();
         builder.uri =               this.uri;
         builder.path =              this.path;
-        builder.content =           this.content;
+        builder.stringToParse =     this.stringToParse;
         builder.inputStream =       this.inputStream;
         builder.javaReader =        this.javaReader;
-        builder.httpHeaders =       new HashMap<>(this.httpHeaders);
+        builder.httpHeaders =       Map.copyOf(this.httpHeaders);
         builder.httpClient =        this.httpClient;
         builder.hintLang =          this.hintLang;
         builder.forceLang =         this.forceLang;
         builder.baseURI =           this.baseURI;
+        builder.contextAcc =        this.contextAcc.clone();
         builder.checking =          this.checking;
         builder.canonicalValues =   this.canonicalValues;
         builder.langTagForm =       this.langTagForm;
@@ -707,7 +741,6 @@ public class RDFParserBuilder {
         builder.factory =           this.factory;
         builder.labelToNode =       this.labelToNode;
         builder.errorHandler =      this.errorHandler;
-        builder.context =           this.context;
         return builder;
     }
 }

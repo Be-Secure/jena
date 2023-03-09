@@ -70,6 +70,8 @@ public class DatasetOperations {
         //Convert Geo predicates to Geometry Literals.
         if (argsConfig.isConvertGeoPredicates()) //Apply validation of Geometry Literal.
         {
+            // ?? This returns a modified dataset which is discarded.
+            // So this is a No-Op??
             GeoSPARQLOperations.convertGeoPredicates(dataset, argsConfig.isRemoveGeoPredicates());
         }
 
@@ -92,6 +94,8 @@ public class DatasetOperations {
             GeoSPARQLConfig.setupNoIndex(argsConfig.isQueryRewrite());
         }
 
+        GeoSPARQLConfig.allowGeometrySRSTransformation(argsConfig.isTransformGeometry());
+
         //Setup Spatial Extension
         prepareSpatialExtension(dataset, argsConfig);
 
@@ -104,11 +108,11 @@ public class DatasetOperations {
         File tdbFolder = argsConfig.getTdbFile();
         if (tdbFolder != null) {
             LOGGER.info("TDB Dataset: {}, TDB2: {}", tdbFolder, argsConfig.isTDB2());
-            if(argsConfig.isTDB2()){
+            if (argsConfig.isTDB2()) {
                 dataset = TDB2Factory.connectDataset(tdbFolder.getAbsolutePath());
-            }else{
+            } else {
                 dataset = TDBFactory.createDataset(tdbFolder.getAbsolutePath());
-            }            
+            }
         } else {
             LOGGER.info("In-Memory Dataset");
             dataset = DatasetFactory.create();
@@ -163,7 +167,7 @@ public class DatasetOperations {
                         LOGGER.info("Reading RDF - Not Completed - File: {} does not exist", rdfFile, graphName, rdfFormat);
                     }
                 }
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 dataset.abort();
                 throw new DatasetException("Read Error: " + ex.getMessage(), ex);
             } finally {
@@ -231,7 +235,7 @@ public class DatasetOperations {
                 GeoSPARQLConfig.setupSpatialIndex(dataset);
             }
         } else {
-            LOGGER.warn("Datset empty. Spatial Index not constructed. Server will require restarting after adding data and any updates to build Spatial Index.");
+            LOGGER.warn("Dataset empty. Spatial Index not constructed. Server will require restarting after adding data and any updates to build Spatial Index.");
         }
     }
 

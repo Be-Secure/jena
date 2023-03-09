@@ -68,11 +68,11 @@ import org.slf4j.LoggerFactory ;
  * We include a trivial, recursive descent parser but this is just there
  * to allow rules to be embedded in code. External rule syntax based on N3
  * and RDF could be developed. The embedded syntax supports rules such as:
- * <blockindent>
- * <code>[ (?C rdf:type *), guard(?C, ?P) {@literal ->} (?c rb:restriction some(?P, ?D)) ].</code><br />
- * <code>[ (?s owl:foo ?p) {@literal ->} [ (?s owl:bar ?a) {@literal ->} (?s ?p ?a) ] ].</code><br />
- * <code>[name: (?s owl:foo ?p) {@literal ->} (?s ?p ?a)].</code><br />
- * </blockindent>
+ * <pre>
+ * [ (?C rdf:type *), guard(?C, ?P) {@literal ->} (?c rb:restriction some(?P, ?D)) ].
+ * [ (?s owl:foo ?p) {@literal ->} [ (?s owl:bar ?a) {@literal ->} (?s ?p ?a) ] ].
+ * [name: (?s owl:foo ?p) {@literal ->} (?s ?p ?a)].
+ * </pre>
  * only built in namespaces are recognized as such, * is a wildcard node, ?c is a variable,
  * name(node ... node) is a functor, (node node node) is a triple pattern, [..] is an
  * embedded rule, commas are ignore and can be freely used as separators. Functor names
@@ -510,7 +510,7 @@ public class Rule implements ClauseEntry {
             InputStream in = FileManager.getInternal().open(uri);
             if (in == null) throw new RulesetNotFoundException( uri );
             br = FileUtils.asBufferedUTF8( in );
-            return parseRules( Rule.rulesParserFromReader( br ) );
+            return parseRules( Rule.rulesParserFromReader( br, registry ) );
         } finally {
             if (br != null) try { br.close(); } catch (IOException e2) {}
         }

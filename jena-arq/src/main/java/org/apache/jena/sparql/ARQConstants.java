@@ -22,12 +22,15 @@ import org.apache.jena.shared.PrefixMapping ;
 import org.apache.jena.shared.impl.PrefixMappingImpl ;
 import org.apache.jena.sparql.core.Prologue;
 import org.apache.jena.sparql.util.Symbol ;
+import org.apache.jena.sys.JenaSystem;
 
 /**
  * Internal constants - configuration is in class ARQ
  */
 public class ARQConstants
 {
+    static { JenaSystem.init(); }
+
     /** The prefix of XQuery/Xpath functions and operator */
     public static final String fnPrefix = "http://www.w3.org/2005/xpath-functions#" ;
 
@@ -189,10 +192,10 @@ public class ARQConstants
     //public static final String allocGlobalVarMarker     = allocVarMarker+globalVar ;    // VarAlloc
     public static final String allocPathVariables       = allocVarAnonMarker+"P" ;      // PathCompiler
     public static final String allocQueryVariables      = allocVarMarker ;              // Query
-    
+
     /** Marker for RDF-star variables */
     public static final String allocVarTripleTerm      = "~";                           // RX, SolverRX
-    
+
     public static final String allocParserAnonVars      = allocVarAnonMarker ;          // LabelToModeMap
     // SSE
     public static final String allocSSEUnamedVars       = "_" ;                         // ParseHandlerPlain - SSE token "?" - legal SPARQL
@@ -220,7 +223,7 @@ public class ARQConstants
     public static final Symbol sysCurrentDataset        = Symbol.create(systemVarNS+"dataset") ;
 
     public static final Symbol sysVarAllocRDFStar       = Symbol.create(systemVarNS+"varAllocRDFStar") ;
-    
+
     /** Context key for the dataset description (if any).
      *  See the <a href="http://www.w3.org/TR/sparql11-protocol">SPARQL protocol</a>.
      *  <p>
@@ -257,19 +260,24 @@ public class ARQConstants
     /** Context key for the execution-scoped bNode variable generator */
     public static final Symbol sysVarAllocAnon          = Symbol.create(systemVarNS+"namedVarAnon") ;
 
-    /** Graphs forming the default graph (List&lt;String&gt;) (Dynamic dataset) */
-    public static final Symbol symDatasetDefaultGraphs     = SystemARQ.allocSymbol("datasetDefaultGraphs") ;
+    /** Graphs forming the default graph (Collection&lt;Node&gt;) (Dynamic dataset) */
+    public static final Symbol symDatasetDefaultGraphs  = SystemARQ.allocSymbol("datasetDefaultGraphs") ;
 
-    /** Graphs forming the named graphs (List&lt;String&gt;) (Dynamic dataset) */
-    public static final Symbol symDatasetNamedGraphs       = SystemARQ.allocSymbol("datasetNamedGraphs") ;
+    /** Graphs forming the named graphs (Collection&lt;Node&gt;) (Dynamic dataset) */
+    public static final Symbol symDatasetNamedGraphs    = SystemARQ.allocSymbol("datasetNamedGraphs") ;
 
     /** Context symbol for a supplied {@link Prologue} (used for text out of result sets). */
-    public static final Symbol symPrologue                 = SystemARQ.allocSymbol("prologue");
+    public static final Symbol symPrologue              = SystemARQ.allocSymbol("prologue");
+
+    /**
+     * Internal use context symbol for an AtomicBoolean to signal that a query has been cancelled.
+     * Used by {@code QueryExecutionMain} and {@code QueryIterProcessBinding}.
+     * JENA-2141.
+     */
+    public static final Symbol symCancelQuery           = SystemARQ.allocSymbol("cancelQuery");
 
     /** Context key for making all SELECT queries have DISTINCT applied, whether stated or not */
     public static final Symbol autoDistinct             = SystemARQ.allocSymbol("autoDistinct") ;
-
-    // Context keys : some here, some in ARQ - sort out
 
     /** The property function registry key */
     public static final Symbol registryPropertyFunctions =
@@ -279,9 +287,17 @@ public class ARQConstants
     public static final Symbol registryDescribeHandlers =
         SystemARQ.allocSymbol("registryDescribeHandlers") ;
 
+    /** The query engine registry key */
+    public static final Symbol registryQueryEngines =
+        SystemARQ.allocSymbol("registryQueryEngines") ;
+
     /** The function library registry key */
     public static final Symbol registryFunctions =
         SystemARQ.allocSymbol("registryFunctions") ;
+
+    /** The service executor library registry key */
+    public static final Symbol registryServiceExecutors =
+        SystemARQ.allocSymbol("registryServiceExecutors") ;
 
     /** The function library registry key */
     public static final Symbol registryProcedures =
@@ -290,4 +306,7 @@ public class ARQConstants
     /** The extension library registry key */
     public static final Symbol registryExtensions =
         SystemARQ.allocSymbol("registryExtensions") ;
+
+    public static void init() {}
+
 }

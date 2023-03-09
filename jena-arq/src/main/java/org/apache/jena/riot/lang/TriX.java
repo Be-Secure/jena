@@ -18,16 +18,18 @@
 
 package org.apache.jena.riot.lang;
 
-/** TriX - see <a href="http://www.hpl.hp.com/techreports/2004/HPL-2004-56.html">HPL-2004-56</a> Jeremy Carroll and Patrick Stickler. 
+/** TriX - see <a href="http://www.hpl.hp.com/techreports/2004/HPL-2004-56.html">HPL-2004-56</a> Jeremy Carroll and Patrick Stickler.
  * Supported:
+ * <ul>
  * <li>Basic TriX as per the DTD in HPL-2004-56
  * <li>Typed literal rdf:XMLLiteral with inline XML.
  * <li>&lt;qname&gt; (on reading)
+ * </ul>
  */
-    
+
 public class TriX {
     // DTD for TrIX : The schema is a much longer.
-    
+
     /*
     HPL tech report
     <!-- TriX: RDF Triples in XML -->
@@ -40,9 +42,9 @@ public class TriX {
     <!ELEMENT plainLiteral (#PCDATA)>
     <!ATTLIST plainLiteral xml:lang CDATA #IMPLIED>
     <!ELEMENT typedLiteral (#PCDATA)>
-    <!ATTLIST typedLiteral datatype CDATA #REQUIRED> 
-    
-    
+    <!ATTLIST typedLiteral datatype CDATA #REQUIRED>
+
+
     W3C DTD
     <!-- TriX: RDF Triples in XML -->
     <!ELEMENT trix         (graph*)>
@@ -56,13 +58,13 @@ public class TriX {
     <!ELEMENT typedLiteral (#PCDATA)>
     <!ATTLIST typedLiteral datatype CDATA #REQUIRED>
     */
-    
+
     /* Constants for TriX */
     public final static String NS              = "http://www.w3.org/2004/03/trix/trix-1/" ;
-    
+
     /* Element name in the W3C DTD */
     public final static String tagTriX         = "trix" ;
-    /* Element name in the HPL tech report */ 
+    /* Element name in the HPL tech report */
     public final static String tagTriXAlt       = "TriX" ;
 
     public final static String tagGraph        = "graph" ;

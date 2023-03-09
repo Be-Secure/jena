@@ -18,28 +18,31 @@
 
 package org.apache.jena.fuseki.main.cmds;
 
+import static arq.cmdline.ModAssembler.assemblerDescDecl;
+
 import java.net.BindException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 
 import arq.cmdline.CmdARQ;
-import arq.cmdline.ModAssembler;
 import arq.cmdline.ModDatasetAssembler;
 import org.apache.jena.assembler.exceptions.AssemblerException;
 import org.apache.jena.atlas.lib.FileOps;
 import org.apache.jena.atlas.logging.FmtLog;
 import org.apache.jena.atlas.web.AuthScheme;
 import org.apache.jena.cmd.ArgDecl;
+import org.apache.jena.cmd.ArgModuleGeneral;
 import org.apache.jena.cmd.CmdException;
 import org.apache.jena.cmd.TerminationException;
 import org.apache.jena.fuseki.Fuseki;
 import org.apache.jena.fuseki.FusekiException;
+import org.apache.jena.fuseki.main.FusekiMainInfo;
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.fuseki.server.DataAccessPoint;
 import org.apache.jena.fuseki.server.DataAccessPointRegistry;
-import org.apache.jena.fuseki.server.FusekiInfo;
+import org.apache.jena.fuseki.server.FusekiCoreInfo;
 import org.apache.jena.fuseki.servlets.SPARQL_QueryGeneral;
 import org.apache.jena.fuseki.validation.DataValidator;
 import org.apache.jena.fuseki.validation.IRIValidator;
@@ -47,6 +50,7 @@ import org.apache.jena.fuseki.validation.QueryValidator;
 import org.apache.jena.fuseki.validation.UpdateValidator;
 import org.apache.jena.query.ARQ;
 import org.apache.jena.query.Dataset;
+import org.apache.jena.rdfs.RDFSFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.riot.RDFLanguages;
@@ -54,9 +58,7 @@ import org.apache.jena.riot.RiotException;
 import org.apache.jena.sparql.core.DatasetGraphFactory;
 import org.apache.jena.sys.JenaSystem;
 import org.apache.jena.system.Txn;
-import org.apache.jena.tdb.TDBFactory;
 import org.apache.jena.tdb.transaction.TransactionManager;
-import org.apache.jena.tdb2.DatabaseMgr;
 import org.slf4j.Logger;
 
 public class FusekiMain extends CmdARQ {
@@ -67,9 +69,13 @@ public class FusekiMain extends CmdARQ {
     private static ArgDecl  argUpdate       = new ArgDecl(ArgDecl.NoValue,  "update", "allowUpdate");
     private static ArgDecl  argFile         = new ArgDecl(ArgDecl.HasValue, "file");
 
+    private static ArgDecl  argTDB1mode     = new ArgDecl(ArgDecl.NoValue,  "tdb1");
     private static ArgDecl  argTDB2mode     = new ArgDecl(ArgDecl.NoValue,  "tdb2");
     private static ArgDecl  argMemTDB       = new ArgDecl(ArgDecl.NoValue,  "memtdb", "memTDB", "tdbmem");
     private static ArgDecl  argTDB          = new ArgDecl(ArgDecl.HasValue, "loc", "location", "tdb");
+
+    // RDFS vocabulary applied to command line defined dataset.
+    private static ArgDecl  argRDFS         = new ArgDecl(ArgDecl.HasValue, "rdfs");
 
     // No SPARQL dataset or services
     private static ArgDecl  argEmpty        = new ArgDecl(ArgDecl.NoValue,  "empty", "no-dataset");
@@ -79,15 +85,18 @@ public class FusekiMain extends CmdARQ {
     private static ArgDecl  argLocalhost    = new ArgDecl(ArgDecl.NoValue,  "localhost", "local");
     private static ArgDecl  argTimeout      = new ArgDecl(ArgDecl.HasValue, "timeout");
     private static ArgDecl  argConfig       = new ArgDecl(ArgDecl.HasValue, "config", "conf");
+
     private static ArgDecl  argJettyConfig  = new ArgDecl(ArgDecl.HasValue, "jetty-config", "jetty");
     private static ArgDecl  argGZip         = new ArgDecl(ArgDecl.HasValue, "gzip");
     private static ArgDecl  argBase         = new ArgDecl(ArgDecl.HasValue, "base", "files");
 
-    private static ArgDecl  argCORS         = new ArgDecl(ArgDecl.NoValue, "withCORS", "cors", "CORS");
-    private static ArgDecl  argNoCORS       = new ArgDecl(ArgDecl.NoValue, "noCORS", "no-cors");
-    private static ArgDecl  argWithPing     = new ArgDecl(ArgDecl.NoValue, "withPing", "ping");
-    private static ArgDecl  argWithStats    = new ArgDecl(ArgDecl.NoValue, "withStats", "stats");
+    // This is now a no-op - CORS is included unless "--no-cors" is used.
+    private static ArgDecl  argCORS         = new ArgDecl(ArgDecl.NoValue,  "withCORS", "cors", "CORS");
+    private static ArgDecl  argNoCORS       = new ArgDecl(ArgDecl.NoValue,  "noCORS", "no-cors");
+    private static ArgDecl  argWithPing     = new ArgDecl(ArgDecl.NoValue,  "withPing", "ping");
+    private static ArgDecl  argWithStats    = new ArgDecl(ArgDecl.NoValue,  "withStats", "stats");
     private static ArgDecl  argWithMetrics  = new ArgDecl(ArgDecl.NoValue,  "withMetrics", "metrics");
+    private static ArgDecl  argWithCompact  = new ArgDecl(ArgDecl.NoValue,  "withCompact", "compact");
 
     private static ArgDecl  argAuth         = new ArgDecl(ArgDecl.HasValue, "auth");
 
@@ -102,11 +111,16 @@ public class FusekiMain extends CmdARQ {
     private static ArgDecl  argSparqler     = new ArgDecl(ArgDecl.HasValue, "sparqler");
 
     private static ArgDecl  argValidators   = new ArgDecl(ArgDecl.NoValue,  "validators");
+
+    private static List<ArgModuleGeneral> additionalArgs = new ArrayList<>();
+    public static void addArgModule(ArgModuleGeneral argModule) { additionalArgs.add(argModule); }
+
     // private static ModLocation modLocation = new ModLocation();
     private static ModDatasetAssembler modDataset      = new ModDatasetAssembler();
 
     private final ServerConfig serverConfig  = new ServerConfig();
-    private boolean useTDB2;
+    // Default
+    private boolean useTDB2 = true;
 
     /** Build, but do not start, a server based on command line syntax. */
     public static FusekiServer build(String... argv) {
@@ -128,20 +142,25 @@ public class FusekiMain extends CmdARQ {
             TransactionManager.QueueBatchSize = TransactionManager.QueueBatchSize / 2;
 
         getUsage().startCategory("Fuseki Main");
+
+        additionalArgs.forEach(aMod->super.addModule(aMod));
+
         // Control the order!
         add(argMem, "--mem",
             "Create an in-memory, non-persistent dataset for the server");
         add(argFile, "--file=FILE",
             "Create an in-memory, non-persistent dataset for the server, initialised with the contents of the file");
         add(argTDB2mode, "--tdb2",
-            "Use TDB2 for command line persistent datasets (dfault is TDB1)");
+            "Use TDB2 for command line persistent datasets (default is TDB1)");
         add(argTDB, "--loc=DIR",
             "Use an existing TDB database (or create if does not exist)");
         add(argMemTDB, "--memTDB",
             "Create an in-memory, non-persistent dataset using TDB (testing only)");
 //            add(argEmpty, "--empty",
-//                "Run with no datasets and services (validators only)");
-        add(argConfig, "--config=",
+//                "Run with no datasets and services");
+        add(argRDFS, "--rdfs=FILE",
+            "Apply RDFS on top of the dataset");
+        add(argConfig, "--config=FILE",
             "Use a configuration file to determine the services");
         addModule(modDataset);
         add(argEmpty); // Hidden for now.
@@ -159,22 +178,31 @@ public class FusekiMain extends CmdARQ {
             "Directory for static content");
         add(argSparqler, "--sparqler=DIR",
             "Run with SPARQLer services Directory for static content");
-        add(argValidators, "--validators",      "Install validators");
-        add(argGeneralQuerySvc, "--general=PATH",    "Add a general SPARQL endpoint (without a dataset) at /PATH");
+        add(argValidators, "--validators",
+            "Install validators");
+        add(argGeneralQuerySvc, "--general=PATH",
+            "Add a general SPARQL endpoint (without a dataset) at /PATH");
 
-        add(argAuth, "--auth=[basic|Digest]", "Run the server using basic or digest authentication (dft: digest).");
-        add(argHttps, "--https=CONF", "https certificate access details. JSON file { \"cert\":FILE , \"passwd\"; SECRET } ");
-        add(argHttpsPort, "--httpsPort=NUM", "https port (default port is 3043)");
+        add(argAuth, "--auth=[basic|digest]",
+            "Run the server using basic or digest authentication");
+        add(argHttps, "--https=CONF",
+            "https certificate access details. JSON file { \"cert\":FILE , \"passwd\"; SECRET } ");
+        add(argHttpsPort, "--httpsPort=NUM",
+            "https port (default port is 3043)");
 
-        add(argPasswdFile, "--passwd=FILE", "Password file");
-        add(argJettyConfig, "--jetty=FILE", "jetty.xml server configuration");
+        add(argPasswdFile, "--passwd=FILE",
+            "Password file");
+        add(argJettyConfig, "--jetty=FILE",
+            "jetty.xml server configuration");
         add(argCORS); //, "--cors"); "Enable CORS");
         add(argNoCORS, "--no-cors", "Disable CORS");
         // put in the configuration file
 //            add(argRealm, "--realm=REALM", "Realm name");
-        add(argWithPing,    "--ping",   "Enable /$/ping");
-        add(argWithStats,   "--stats",  "Enable /$/stats");
-        add(argWithMetrics, "--metrics",  "Enable /$/metrics");
+
+        add(argWithPing,    "--ping",       "Enable /$/ping");
+        add(argWithStats,   "--stats",      "Enable /$/stats");
+        add(argWithMetrics, "--metrics",    "Enable /$/metrics");
+        add(argWithCompact, "--compact",    "Enable /$/compact/*");
 
         super.modVersion.addClass(Fuseki.class);
     }
@@ -201,7 +229,7 @@ public class FusekiMain extends CmdARQ {
             numDefinitions++;
         if ( contains(argFile) )
             numDefinitions++;
-        if ( contains(ModAssembler.assemblerDescDecl) )
+        if ( contains(assemblerDescDecl) )
             numDefinitions++;
         if ( contains(argTDB) )
             numDefinitions++;
@@ -223,12 +251,15 @@ public class FusekiMain extends CmdARQ {
         if ( contains(argConfig) ) {
             if ( getPositional().size() != 0 )
                 throw new CmdException("Can't have both a configutation file and a service name");
-        } else if ( ! allowEmpty ) {
-            if ( getPositional().size() == 0 )
+            if ( contains(argRDFS) )
+                throw new CmdException("Need to define RDFS setup in the configuration file.");
+        } else {
+            if ( ! allowEmpty && getPositional().size() == 0 )
                 throw new CmdException("Missing service name");
             if ( getPositional().size() > 1 )
                 throw new CmdException("Multiple dataset path names given");
-            serverConfig.datasetPath = DataAccessPoint.canonical(getPositionalArg(0));
+            if ( getPositional().size() != 0 )
+                serverConfig.datasetPath = DataAccessPoint.canonical(getPositionalArg(0));
         }
 
         serverConfig.datasetDescription = "<unset>";
@@ -260,8 +291,10 @@ public class FusekiMain extends CmdARQ {
         // Only one of these is choose from the checking above.
 
         // Which TDB to use to create a command line TDB database.
-        useTDB2 = contains(argTDB2mode);
-        String tag = useTDB2 ? "TDB2" : "TDB1";
+        if ( contains(argTDB1mode) )
+            useTDB2 = false;
+        if ( contains(argTDB2mode) )
+            useTDB2 = true;
 
         if ( allowEmpty ) {
             serverConfig.empty = true;
@@ -274,7 +307,7 @@ public class FusekiMain extends CmdARQ {
             if ( file.startsWith("file:") )
                 file = file.substring("file:".length());
 
-            Path path = Paths.get(file);
+            Path path = Path.of(file);
             if ( ! Files.exists(path) )
                 throw new CmdException("File not found: "+file);
             if ( Files.isDirectory(path) )
@@ -296,6 +329,8 @@ public class FusekiMain extends CmdARQ {
         if ( contains(argFile) ) {
             List<String> filenames = getValues(argFile);
             serverConfig.datasetDescription = "in-memory, with files loaded";
+            // Update is not enabled by default for --file
+            serverConfig.allowUpdate = contains(argUpdate);
             serverConfig.dsg = DatasetGraphFactory.createTxnMem();
 
             for(String filename : filenames ) {
@@ -321,12 +356,7 @@ public class FusekiMain extends CmdARQ {
         }
 
         if ( contains(argMemTDB) ) {
-            serverConfig.datasetDescription = tag+" dataset in-memory";
-            serverConfig.dsg =
-                useTDB2
-                ? DatabaseMgr.createDatasetGraph()
-                    : TDBFactory.createDatasetGraph();
-                serverConfig.allowUpdate = true;
+            DSGSetup.setupMemTDB(useTDB2, serverConfig);
         }
 
         if ( contains(argTDB) ) {
@@ -334,11 +364,20 @@ public class FusekiMain extends CmdARQ {
             DSGSetup.setupTDB(directory, useTDB2, serverConfig);
         }
 
-        if ( contains(ModAssembler.assemblerDescDecl) ) {
-            serverConfig.datasetDescription = "Assembler: "+ getValue(ModAssembler.assemblerDescDecl);
+        if ( contains(assemblerDescDecl) ) {
+            serverConfig.datasetDescription = "Assembler: "+ getValue(assemblerDescDecl);
             // Need to add service details.
             Dataset ds = modDataset.createDataset();
             serverConfig.dsg = ds.asDatasetGraph();
+        }
+
+        if ( contains(argRDFS) ) {
+            String rdfsVocab = getValue(argRDFS);
+            if ( !FileOps.exists(rdfsVocab) )
+                throw new CmdException("No such file for RDFS: "+rdfsVocab);
+            serverConfig.rdfsGraph = RDFDataMgr.loadGraph(rdfsVocab);
+            serverConfig.datasetDescription = serverConfig.datasetDescription+ " (with RDFS)";
+            serverConfig.dsg = RDFSFactory.datasetRDFS(serverConfig.dsg, serverConfig.rdfsGraph);
         }
 
         // ---- Misc features.
@@ -423,12 +462,7 @@ public class FusekiMain extends CmdARQ {
         serverConfig.withPing = contains(argWithPing);
         serverConfig.withStats = contains(argWithStats);
         serverConfig.withMetrics = contains(argWithMetrics);
-
-//            if ( contains(argGZip) ) {
-//                if ( !hasValueOfTrue(argGZip) && !hasValueOfFalse(argGZip) )
-//                    throw new CmdException(argGZip.getNames().get(0) + ": Not understood: " + getValue(argGZip));
-//                jettyServerConfig.enableCompression = super.hasValueOfTrue(argGZip);
-//            }
+        serverConfig.withCompact = contains(argWithCompact);
     }
 
     private int portNumber(ArgDecl arg) {
@@ -446,8 +480,10 @@ public class FusekiMain extends CmdARQ {
     @Override
     protected void exec() {
         try {
+            Logger log = Fuseki.serverLog;
+            FusekiMainInfo.logServerCode(log);
             FusekiServer server = buildServer(serverConfig);
-            info(server);
+            infoCmd(server, log);
             try {
                 server.start();
             } catch (FusekiException ex) {
@@ -501,10 +537,10 @@ public class FusekiMain extends CmdARQ {
 
         if ( serverConfig.validators ) {
             // Validators.
-            builder.addServlet("/validate/query",  new QueryValidator());
-            builder.addServlet("/validate/update", new UpdateValidator());
-            builder.addServlet("/validate/iri",    new IRIValidator());
-            builder.addServlet("/validate/data",   new DataValidator());
+            builder.addServlet("/$/validate/query",  new QueryValidator());
+            builder.addServlet("/$/validate/update", new UpdateValidator());
+            builder.addServlet("/$/validate/iri",    new IRIValidator());
+            builder.addServlet("/$/validate/data",   new DataValidator());
         }
 
         if ( ! serverConfig.empty ) {
@@ -543,18 +579,17 @@ public class FusekiMain extends CmdARQ {
         if ( serverConfig.withMetrics )
             builder.enableMetrics(true);
 
+        if ( serverConfig.withCompact )
+            builder.enableCompact(true);
+
         return builder.build();
     }
 
-    private void info(FusekiServer server) {
+    /** Information from the command line setup */
+    private void infoCmd(FusekiServer server, Logger log) {
         if ( super.isQuiet() )
             return;
 
-        Logger log = Fuseki.serverLog;
-
-        FusekiInfo.server(log);
-
-        DataAccessPointRegistry dapRegistry = DataAccessPointRegistry.get(server.getServletContext());
         if ( serverConfig.empty ) {
             FmtLog.info(log, "No SPARQL datasets services");
         } else {
@@ -562,6 +597,7 @@ public class FusekiMain extends CmdARQ {
                 log.error("No dataset path nor server configuration file");
         }
 
+        DataAccessPointRegistry dapRegistry = DataAccessPointRegistry.get(server.getServletContext());
         if ( serverConfig.datasetPath != null ) {
             if ( dapRegistry.size() != 1 )
                 log.error("Expected only one dataset in the DataAccessPointRegistry");
@@ -575,8 +611,8 @@ public class FusekiMain extends CmdARQ {
         boolean verbose = serverConfig.verboseLogging;
 
         if ( ! super.isQuiet() )
-            FusekiInfo.logServerSetup(log, verbose, dapRegistry,
-                                      datasetPath, datasetDescription, serverConfigFile, staticFiles);
+            FusekiCoreInfo.logServerCmdSetup(log, verbose, dapRegistry,
+                                             datasetPath, datasetDescription, serverConfigFile, staticFiles);
     }
 
     @Override

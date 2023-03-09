@@ -24,10 +24,10 @@
 
 package org.apache.jena.rdfxml.xmlinput.impl;
 
-import org.xml.sax.SAXParseException;
-import org.apache.jena.iri.IRI;
+import org.apache.jena.irix.IRIx;
 import org.apache.jena.rdfxml.xmlinput.ARPErrorNumbers ;
 import org.apache.jena.rdfxml.xmlinput.states.Frame ;
+import org.xml.sax.SAXParseException;
 
 // TODO: not for 2.3 IRI spec conformance
 
@@ -36,22 +36,12 @@ public class URIReference extends TaintImpl implements AResourceInternal, ARPErr
     /** Creates new URIReference */
     final private String uri;
 
-    // URIReference(Location l, AbsXMLContext ctxt,String uri) throws
-    // URISyntaxException, ParseException {
-    //        
-    // // this.uri = new URI(ctxt.getURI(),URIref.encode(uri));
-    // this.uri = ctxt.resolve(l, uri);
-    // }
     protected URIReference(String uri) {
         // this.uri = new URI(URIref.encode(uri));
         this.uri = uri;
         if (uri==null)
             throw new NullPointerException();
     }
-
-//    URIReference() {
-//        uri = null;
-//    }
 
     @Override
     public String toString() {
@@ -101,7 +91,7 @@ public class URIReference extends TaintImpl implements AResourceInternal, ARPErr
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.jena.rdf.arp.AResource#hasNodeID()
      */
     @Override
@@ -111,7 +101,7 @@ public class URIReference extends TaintImpl implements AResourceInternal, ARPErr
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.jena.rdf.arp.AResourceInternal#setHasBeenUsed()
      */
     @Override
@@ -120,7 +110,7 @@ public class URIReference extends TaintImpl implements AResourceInternal, ARPErr
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see org.apache.jena.rdf.arp.AResourceInternal#getHasBeenUsed()
      */
     @Override
@@ -129,7 +119,7 @@ public class URIReference extends TaintImpl implements AResourceInternal, ARPErr
     }
 
     /**
-     * 
+     *
      * @param f
      *            A frame for error reporting. AbsXMLContext of frame is ignored.
      * @param x
@@ -139,17 +129,16 @@ public class URIReference extends TaintImpl implements AResourceInternal, ARPErr
      * @return The resulting URI
      * @throws SAXParseException
      */
-    public static URIReference fromID(Frame f, AbsXMLContext x, String name)
-            throws SAXParseException {
+    public static URIReference fromID(Frame f, AbsXMLContext x, String name) throws SAXParseException {
         // Other errors are checked for by the AttributeLexer
         URIReference rslt = resolve(f,x,"#"+name);
         f.checkIdSymbol(rslt,x,name);
         return rslt;
-        
+
     }
 
     /**
-     * 
+     *
      * @param f
      *            A frame for error reporting. AbsXMLContext of frame is ignored.
      * @param ctxt
@@ -163,7 +152,7 @@ public class URIReference extends TaintImpl implements AResourceInternal, ARPErr
             throws SAXParseException {
 
         Taint taintMe = new TaintImpl();
-        IRI iri = ctxt.resolveAsURI(f.arp,taintMe,uri);
+        IRIx iri = ctxt.resolveAsURI(f.arp,taintMe,uri);
         f.checkEncoding(taintMe,uri);
 
         URIReference rslt = new URIReference(iri.toString());
@@ -177,7 +166,7 @@ public class URIReference extends TaintImpl implements AResourceInternal, ARPErr
         URIReference rslt = new URIReference(ns + local);
         f.checkEncoding(rslt,local);
         // TODO: not for 2.3 move some of the check upwards ...
-        IRI iri = f.arp.iriFactory().create(ns+local);
+        IRIx iri = f.arp.iriProvider().create(ns+local);
         AbsXMLContext.checkURI(f.arp,rslt,iri);
         return rslt;
     }

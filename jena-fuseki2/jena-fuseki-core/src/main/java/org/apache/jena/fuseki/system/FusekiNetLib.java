@@ -42,7 +42,8 @@ import org.apache.jena.sparql.util.Convert;
 
 /** Library of HTTP/network related functions. */
 public class FusekiNetLib {
-    /** Get the content type of an action or return the default.
+    /**
+     * Get the content type of an action or return the default.
      * @param  request
      * @return ContentType
      */
@@ -53,18 +54,23 @@ public class FusekiNetLib {
         return ContentType.create(contentTypeHeader);
     }
 
-    /** Get the incoming {@link Lang} based on Content-Type of an action.
+    /**
+     * Get the incoming {@link Lang} based on Content-Type of an action.
      * @param  action
      * @param  dft Default if no "Content-Type:" found.
      * @return ContentType
      */
     public static Lang getLangFromAction(HttpAction action, Lang dft) {
-        String contentTypeHeader = action.request.getContentType();
+        String contentTypeHeader = action.getRequestContentType();
         if ( contentTypeHeader == null )
             return dft;
         return RDFLanguages.contentTypeToLang(contentTypeHeader);
     }
 
+    /**
+     * Get Accept header. If multiple headers, convert to a single,
+     * comma-separated value.
+     */
     public static String getAccept(HttpServletRequest httpRequest) {
         // There can be multiple accept headers -- note many tools don't allow these
         // to be this way (e.g. wget, curl)

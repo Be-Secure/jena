@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List ;
 import java.util.Objects;
 import java.util.Set ;
+import java.util.stream.Stream;
 import java.util.zip.Adler32 ;
 import java.util.zip.CRC32 ;
 import java.util.zip.Checksum ;
@@ -32,6 +33,12 @@ import org.apache.jena.atlas.logging.Log ;
 public class Lib
 {
     private Lib() {}
+
+    /** Stream to {@link List} */
+    public static <X> List<X> toList(Stream<X> stream) {
+        // Findability.
+        return StreamOps.toList(stream);
+    }
 
     /** "ConcurrentHashSet" */
     public static final <X> Set<X> concurrentHashSet() {
@@ -83,7 +90,7 @@ public class Lib
         return new UnsupportedOperationException(Lib.className(object) + "." + method);
     }
 
-    /** Do two lists have the same elements without considering the order of the lists? */
+    /** Do two lists have the same elements without considering the order of the lists nor duplicates? */
     public static <T> boolean equalsListAsSet(List<T> list1, List<T> list2) {
         if ( list1 == null && list2 == null )
             return true ;
@@ -105,6 +112,14 @@ public class Lib
     public static final void sleep(int milliSeconds) {
         try  { Thread.sleep(milliSeconds) ; }
         catch (InterruptedException ex) { Log.warn(Lib.class, "interrupted", ex) ; }
+    }
+
+    /** Get an environment variable value; if not found try in the system properties. */
+    public static String getenv(String name) {
+        String x = System.getenv(name);
+        if ( x == null )
+            x = System.getProperty(name);
+        return x;
     }
 
     /**

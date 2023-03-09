@@ -21,7 +21,7 @@
   <parent>
     <groupId>org.apache.jena</groupId>
     <artifactId>jena-fuseki</artifactId>
-    <version>4.0.0</version>
+    <version>4.8.0-SNAPSHOT</version>
     <relativePath>../</relativePath>
   </parent>
 
@@ -30,6 +30,7 @@
   <packaging>jar</packaging>
 
   <properties>
+    <build.time.xsd>${maven.build.timestamp}</build.time.xsd>
     <automatic.module.name>org.apache.jena.fuseki.core</automatic.module.name>
   </properties>
 
@@ -37,14 +38,38 @@
 
     <dependency>
       <groupId>org.apache.jena</groupId>
-      <artifactId>apache-jena-libs</artifactId>
-      <version>4.0.0</version>
-      <type>pom</type>
+      <artifactId>jena-rdfpatch</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
     </dependency>
 
     <dependency>
-      <groupId>commons-fileupload</groupId>
-      <artifactId>commons-fileupload</artifactId>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-shacl</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-shex</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-tdb</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-tdb2</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-rdfconnection</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
     </dependency>
 
     <dependency>
@@ -62,25 +87,9 @@
       <artifactId>slf4j-api</artifactId>
     </dependency>
 
-    <!-- Logging
-         Needed to compile the FusekiLogging code
-         used by the commmand line programmes.
-         "optional" so that Fuseki used embedded
-         does not drag it in.
-    -->
     <dependency>
       <groupId>org.apache.logging.log4j</groupId>
       <artifactId>log4j-slf4j-impl</artifactId>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-api</artifactId>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.logging.log4j</groupId>
-      <artifactId>log4j-core</artifactId>
       <optional>true</optional>
     </dependency>
 
@@ -132,13 +141,6 @@
         <artifactId>maven-source-plugin</artifactId>
         <executions>
           <execution>
-            <id>attach-sources</id>
-            <phase>package</phase>
-            <goals>
-              <goal>jar-no-fork</goal>
-            </goals>
-          </execution>
-          <execution>
             <id>attach-sources-test</id>
             <goals>
               <goal>test-jar-no-fork</goal>
@@ -147,25 +149,9 @@
         </executions>
       </plugin>
 
-      <!-- Testing is done in jena-fuseki-webapp and jena-fuseki-main -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <configuration>
-          <skipTests>true</skipTests>
-        </configuration>
-      </plugin>
-
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
-        <configuration>
-          <archive>
-            <manifestEntries>
-              <Automatic-Module-Name>${automatic.module.name}</Automatic-Module-Name>
-            </manifestEntries>
-          </archive>
-        </configuration> 
         <executions>
           <execution>
             <goals>
@@ -174,26 +160,23 @@
           </execution>
         </executions>
       </plugin>
-      
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-dependency-plugin</artifactId>
+        <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <overWriteReleases>false</overWriteReleases>
-          <overWriteIfNewer>true</overWriteIfNewer>
+          <includes>
+            <include>**/TS_*.java</include>
+          </includes>
         </configuration>
       </plugin>
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-resources-plugin</artifactId>
-        <configuration>
-          <encoding>UTF-8</encoding>
-        </configuration>
+        <artifactId>maven-javadoc-plugin</artifactId>
       </plugin>
 
     </plugins>
 
   </build>
-
 </project>

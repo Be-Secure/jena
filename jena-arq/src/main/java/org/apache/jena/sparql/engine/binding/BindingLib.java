@@ -1,23 +1,26 @@
 /*
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
- *  See the NOTICE file distributed with this work for additional
- *  information regarding copyright ownership.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.jena.sparql.engine.binding;
 
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
 
 import org.apache.jena.atlas.logging.Log;
@@ -70,6 +73,13 @@ public class BindingLib {
         return builder.build();
     }
 
+    /** Convert Binding to a Map */
+    public static Map<Var, Node> bindingToMap(Binding binding) {
+        Map<Var, Node> map = new HashMap<>();
+        binding.forEach(map::put);
+        return map;
+    }
+
     /** Convert a query solution to a binding */
     public static Binding asBinding(QuerySolution qSolution) {
         if ( qSolution == null )
@@ -85,7 +95,7 @@ public class BindingLib {
         BindingBuilder builder = Binding.builder();
         for ( Iterator<String> iter = qSolution.varNames() ; iter.hasNext() ; ) {
             String n = iter.next();
-    
+
             RDFNode x = qSolution.get(n);
             if ( Var.isBlankNodeVarName(n) )
                 continue;
@@ -93,7 +103,7 @@ public class BindingLib {
                 builder.add(Var.alloc(n), x.asNode());
             } catch (ARQInternalErrorException ex) {
                 // bad binding attempt.
-                Log.warn(BindingUtils.class, "Attempt to bind " + n + " when already bound");
+                Log.warn(BindingLib.class, "Attempt to bind " + n + " when already bound");
             }
         }
         return builder.build();

@@ -27,18 +27,12 @@ import org.apache.jena.atlas.lib.DateTimeUtils;
 import org.apache.jena.atlas.lib.FileOps;
 import org.apache.jena.fuseki.Fuseki;
 import org.apache.jena.fuseki.FusekiException;
-import org.apache.jena.fuseki.jetty.FusekiErrorHandler;
-import org.apache.jena.fuseki.jetty.JettyServerConfig;
 import org.apache.jena.fuseki.server.DataAccessPointRegistry;
-import org.apache.jena.fuseki.server.FusekiInfo;
+import org.apache.jena.fuseki.server.FusekiCoreInfo;
 import org.apache.jena.fuseki.webapp.FusekiEnv;
 import org.eclipse.jetty.security.*;
 import org.eclipse.jetty.security.authentication.BasicAuthenticator;
-import org.eclipse.jetty.server.HttpConnectionFactory;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.server.handler.AllowSymLinkAliasChecker;
-import org.eclipse.jetty.server.handler.ContextHandler;
+import org.eclipse.jetty.server.*;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.util.resource.Resource;
@@ -54,7 +48,7 @@ import org.eclipse.jetty.xml.XmlConfiguration;
  * immediate access to the {@link org.eclipse.jetty.server.Server#start()} and
  * {@link org.eclipse.jetty.server.Server#stop()} commands as well as obtaining
  * instances of the server and server configuration. Finally we can obtain
- * instances of {@link org.apache.jena.fuseki.jetty.JettyServerConfig}.
+ * instances of {@link org.apache.jena.fuseki.cmd.JettyServerConfig}.
  */
 public class JettyFusekiWebapp {
     // Jetty specific.
@@ -81,10 +75,10 @@ public class JettyFusekiWebapp {
     // Standalone jar
     public static final String resourceBase1   = "webapp";
     // Development
-    public static final String resourceBase2   = "src/main/webapp";
+    public static final String resourceBase2   = "target/webapp";
 
     /**
-     * Default setup which requires a {@link org.apache.jena.fuseki.jetty.JettyServerConfig}
+     * Default setup which requires a {@link org.apache.jena.fuseki.cmd.JettyServerConfig}
      * object as input.  We use this config to pass in the command line arguments for dataset,
      * name etc.
      * @param config
@@ -112,7 +106,7 @@ public class JettyFusekiWebapp {
      */
     public void start() {
 
-        FusekiInfo.server(serverLog);
+        FusekiCoreInfo.logCode(serverLog);
         // This does not get anything usefully for Jetty as we use it.
         // String jettyVersion = org.eclipse.jetty.server.Server.getVersion();
         // serverLog.info(format("Jetty %s",jettyVersion));
@@ -236,9 +230,9 @@ public class JettyFusekiWebapp {
             // See http://www.eclipse.org/jetty/documentation/current/serving-aliased-files.html
             // Record what would be needed:
             // 1 - Allow all symbolic links without checking
-            webapp.addAliasCheck(new ContextHandler.ApproveAliases());
+            webapp.addAliasCheck(new AllowedResourceAliasChecker(webapp));
             // 2 - Check links are to valid resources. But default for Unix?
-            webapp.addAliasCheck(new AllowSymLinkAliasChecker());
+            webapp.addAliasCheck(new SymlinkAllowedResourceAliasChecker(webapp));
         }
         servletContext = webapp.getServletContext();
         server.setHandler(webapp);

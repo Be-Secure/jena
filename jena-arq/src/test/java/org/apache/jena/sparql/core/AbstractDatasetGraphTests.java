@@ -33,6 +33,8 @@ import org.apache.jena.graph.Graph ;
 import org.apache.jena.graph.Node ;
 import org.apache.jena.graph.NodeFactory ;
 import org.apache.jena.graph.Triple ;
+import org.apache.jena.shared.AddDeniedException;
+import org.apache.jena.shared.DeleteDeniedException;
 import org.apache.jena.sparql.graph.GraphFactory ;
 import org.apache.jena.sparql.sse.SSE ;
 import org.apache.jena.system.Txn;
@@ -326,6 +328,23 @@ public abstract class AbstractDatasetGraphTests
         assertFalse(dsg.containsGraph(gn)) ;
     }
 
+    @Test public void clear_02() {
+        DatasetGraph dsg = emptyDataset();
+        dsg.add(SSE.parseQuad("(quad _ <a0> <b0> <b0>)"));
+        dsg.add(SSE.parseQuad("(quad <g1> <a1> <b1> <b1>)"));
+        dsg.add(SSE.parseQuad("(quad <g2> <a2> <b2> <b2>)"));
+
+        assertEquals(2, dsg.size());
+        assertEquals(1, dsg.getDefaultGraph().size());
+        assertFalse(dsg.isEmpty());
+
+        dsg.clear();
+
+        assertEquals(0, dsg.size());
+        assertEquals(0, dsg.getDefaultGraph().size());
+        assertTrue(dsg.isEmpty());
+    }
+
     @Test public void graph_clear_1() {
         DatasetGraph dsg = emptyDataset() ;
         if ( ! dsg.supportsTransactions() )
@@ -421,5 +440,15 @@ public abstract class AbstractDatasetGraphTests
         assertTrue(b);
     }
 
+    @Test(expected=AddDeniedException.class) public void updateUnionGraph_1() {
+        DatasetGraph dsg = emptyDataset();
+        Quad quad = SSE.parseQuad("(quad :g :s :p :o)") ;
+        dsg.add(Quad.unionGraph, quad.getSubject(), quad.getPredicate(), quad.getObject());
+    }
 
+    @Test(expected=DeleteDeniedException.class) public void updateUnionGraph_2() {
+        DatasetGraph dsg = emptyDataset();
+        Quad quad = SSE.parseQuad("(quad :g :s :p :o)") ;
+        dsg.delete(Quad.unionGraph, quad.getSubject(), quad.getPredicate(), quad.getObject());
+    }
 }

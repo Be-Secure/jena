@@ -120,20 +120,17 @@ public class TextQueryPF extends PropertyFunctionBase {
      * into the execution context. This is the normal route because
      * {@link TextDatasetFactory} sets the text index in the dataset context.
      * Asking the dataset directly is only needed for the case of no context set,
-     * just in case of a unusually, progammatically constructed
+     * just in case of a unusually, programmatically constructed
      * {@code DatasetGraphText} is being used (a bug, or old code, probably).
      */
     private static TextIndex chooseTextIndex(ExecutionContext execCxt, DatasetGraph dsg) {
 
         Object obj = execCxt.getContext().get(TextQuery.textIndex) ;
 
-        if (obj != null) {
-            try {
-                return (TextIndex)obj ;
-            } catch (ClassCastException ex) {
-                Log.warn(TextQueryPF.class, "Context setting '" + TextQuery.textIndex + "'is not a TextIndex") ;
-            }
-        }
+        if ( obj instanceof TextIndex )
+            return (TextIndex)obj ;
+        if ( obj != null )
+            Log.warn(TextQueryPF.class, "Context setting '" + TextQuery.textIndex + "' is not a TextIndex") ;
 
         if (dsg instanceof DatasetGraphText) {
             DatasetGraphText x = (DatasetGraphText)dsg ;
@@ -154,12 +151,12 @@ public class TextQueryPF extends PropertyFunctionBase {
                 }
             }
         }
-
         return value;
     }
 
     @Override
-    public QueryIterator exec(Binding binding, PropFuncArg argSubject, Node predicate, PropFuncArg argObject,
+    public QueryIterator exec(Binding binding,
+                              PropFuncArg argSubject, Node predicate, PropFuncArg argObject,
                               ExecutionContext execCxt) {
         if (log.isTraceEnabled()) {
             IndentedLineBuffer subjBuff = new IndentedLineBuffer() ;
@@ -261,7 +258,7 @@ public class TextQueryPF extends PropertyFunctionBase {
         } ;
 
         Iterator<Binding> bIter = Iter.map(results.iterator(), converter);
-        QueryIterator qIter = new QueryIterPlainWrapper(bIter, execCxt);
+        QueryIterator qIter = QueryIterPlainWrapper.create(bIter, execCxt);
         return qIter ;
     }
 

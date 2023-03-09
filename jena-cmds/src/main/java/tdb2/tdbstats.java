@@ -18,14 +18,14 @@
 
 package tdb2;
 
-import java.util.Iterator ;
+import java.util.Iterator;
 
-import org.apache.jena.atlas.lib.tuple.Tuple ;
-import org.apache.jena.atlas.logging.Log ;
+import org.apache.jena.atlas.lib.tuple.Tuple;
+import org.apache.jena.atlas.logging.Log;
 import org.apache.jena.system.Txn;
-import org.apache.jena.graph.Node ;
-import org.apache.jena.sparql.core.Quad ;
-import org.apache.jena.tdb2.solver.SolverLib;
+import org.apache.jena.graph.Node;
+import org.apache.jena.sparql.core.Quad;
+import org.apache.jena.tdb2.solver.SolverLibTDB;
 import org.apache.jena.tdb2.solver.stats.Stats;
 import org.apache.jena.tdb2.solver.stats.StatsCollectorNodeId;
 import org.apache.jena.tdb2.solver.stats.StatsResults;
@@ -55,9 +55,9 @@ public class tdbstats extends CmdTDBGraph {
     public static StatsResults stats(DatasetGraphTDB dsg, Node gn) {
         return Txn.calculateRead(dsg, ()->stats$(dsg, gn));
     }
-    
+
     private static StatsResults stats$(DatasetGraphTDB dsg, Node gn) {
-                            
+
         NodeTable nt = dsg.getTripleTable().getNodeTupleTable().getNodeTable();
         StatsCollectorNodeId stats = new StatsCollectorNodeId(nt);
 
@@ -68,9 +68,10 @@ public class tdbstats extends CmdTDBGraph {
                 stats.record(null, t.get(0), t.get(1), t.get(2));
             }
         } else {
-            // If the union graph, then we need to scan all quads but with uniqueness.
-            boolean unionGraph = Quad.isUnionGraph(gn) ;
-            NodeId gnid = null ;
+            // If the union graph, then we need to scan all quads but with
+            // uniqueness.
+            boolean unionGraph = Quad.isUnionGraph(gn);
+            NodeId gnid = null;
             if ( !unionGraph ) {
                 gnid = nt.getNodeIdForNode(gn);
                 if ( NodeId.isDoesNotExist(gnid) )
@@ -79,7 +80,7 @@ public class tdbstats extends CmdTDBGraph {
 
             NodeTupleTable ntt = dsg.getQuadTable().getNodeTupleTable();
             Iterator<Tuple<NodeId>> iter = unionGraph
-                ? SolverLib.unionGraph(ntt)
+                ? SolverLibTDB.unionGraph(ntt)
                 : ntt.find(gnid, null, null, null) ;
             for ( ; iter.hasNext() ; ) {
                 Tuple<NodeId> t = iter.next();

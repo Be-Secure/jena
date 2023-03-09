@@ -27,11 +27,13 @@ import org.apache.jena.rdf.model.Model ;
 import org.apache.jena.rdf.model.ModelFactory ;
 import org.apache.jena.riot.Lang ;
 import org.apache.jena.riot.RDFDataMgr;
+import org.apache.jena.riot.ReadAnything;
 import org.apache.jena.riot.ResultSetMgr ;
 import org.apache.jena.riot.resultset.ResultSetLang;
-import org.apache.jena.riot.resultset.rw.ReadAnything;
+import org.apache.jena.sparql.core.Var;
 import org.apache.jena.sparql.engine.QueryIterator ;
 import org.apache.jena.sparql.engine.ResultSetStream ;
+import org.apache.jena.sparql.exec.RowSet;
 import org.apache.jena.sparql.graph.GraphFactory ;
 import org.apache.jena.sparql.resultset.* ;
 import org.apache.jena.sparql.sse.Item ;
@@ -246,7 +248,9 @@ public class ResultSetFactory {
      * @param in
      *            InputStream
      * @return ResultSet
+     * @deprecated Use {@code ResultSetMgr.read(in, ResultSetLang.RS_TSV)}
      */
+    @Deprecated
     public static ResultSet fromTSV(InputStream in) {
         return ResultSetMgr.read(in, ResultSetLang.RS_TSV);
     }
@@ -312,6 +316,18 @@ public class ResultSetFactory {
     }
 
     /**
+     * Turn a row set into a rewindable ResultSet.
+     * Uses up the result set passed in which is no longer valid as a RowSet.
+     *
+     * @param rowSet
+     * @return ResultSetRewindable
+     */
+    static public ResultSetRewindable makeRewindable(RowSet rowSet) {
+        return makeRewindable(ResultSet.adapt(rowSet));
+    }
+
+
+    /**
      * Turns an existing result set into one with peeking capabilities
      * <p>
      * Using the returned result set consumes the result set passed in, the
@@ -320,7 +336,7 @@ public class ResultSetFactory {
      * result set directly as this may cause results to be missed or put the
      * returned peekable result set into an invalid state.
      * </p>
-     * </p> Note that rewindable results may typically also be peekable so may
+     * <p> Note that rewindable results may typically also be peekable so may
      * be more broadly applicable if you can afford the cost of loading all the
      * results into memory. </p>
      *
@@ -371,6 +387,6 @@ public class ResultSetFactory {
      * @return ResultSet
      */
     static public ResultSet create(QueryIterator queryIterator, List<String> vars) {
-        return new ResultSetStream(vars, null, queryIterator);
+        return ResultSetStream.create(Var.varList(vars), queryIterator);
     }
 }

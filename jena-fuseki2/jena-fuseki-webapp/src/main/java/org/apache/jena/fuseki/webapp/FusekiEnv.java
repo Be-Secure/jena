@@ -18,8 +18,9 @@
 
 package org.apache.jena.fuseki.webapp;
 
+import static org.apache.jena.atlas.lib.Lib.getenv;
+
 import java.nio.file.Path;
-import java.nio.file.Paths;
 
 import org.apache.commons.lang3.SystemUtils;
 
@@ -55,7 +56,7 @@ public class FusekiEnv {
         If at server initialization, the MODE is UNSET, then assume WAR setup.
         A WAR file does not have the opportunity to set the mode.
         <p>
-        TEST:  (better to set FUSEKI_HOME, FUSEKI_BASE from the test environment</li>
+        TEST:  (better to set FUSEKI_HOME, FUSEKI_BASE from the test environment
     */
     public enum INIT {
         // Default values of FUSEKI_HOME, and FUSEKI_BASE.
@@ -109,7 +110,7 @@ public class FusekiEnv {
             if ( x1 == null )
                 x1 = mode.dftFusekiHome;
             if ( x1 != null )
-                FUSEKI_HOME = Paths.get(x1);
+                FUSEKI_HOME = Path.of(x1);
         }
 
         if ( FUSEKI_BASE == null ) {
@@ -117,7 +118,7 @@ public class FusekiEnv {
             if ( x2 == null )
                 x2 = mode.dftFusekiBase;
             if ( x2 != null )
-                FUSEKI_BASE = Paths.get(x2);
+                FUSEKI_BASE = Path.of(x2);
             else {
                 if ( FUSEKI_HOME != null )
                     FUSEKI_BASE = FUSEKI_HOME.resolve(ENV_runArea);
@@ -125,7 +126,7 @@ public class FusekiEnv {
                     // This is bad - there should have been a default by now.
                     logInitError("Can't find a setting for FUSEKI_BASE - guessing wildy");
                     // Neither FUSEKI_HOME nor FUSEKI_BASE set.
-                    FUSEKI_BASE = Paths.get(DFT_FUSEKI_BASE);
+                    FUSEKI_BASE = Path.of(DFT_FUSEKI_BASE);
                 }
             }
         }
@@ -148,14 +149,6 @@ public class FusekiEnv {
     private static void logInitError(String fmt, Object ... args) {
         System.err.printf(fmt, args);
         System.err.println();
-    }
-
-    /** Get environment variable value (maybe in system properties) */
-    public static String getenv(String name) {
-        String x = System.getenv(name);
-        if ( x == null )
-            x = System.getProperty(name);
-        return x;
     }
 }
 

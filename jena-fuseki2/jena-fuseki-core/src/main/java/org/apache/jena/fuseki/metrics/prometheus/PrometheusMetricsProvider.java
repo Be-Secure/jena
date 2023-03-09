@@ -19,7 +19,7 @@ package org.apache.jena.fuseki.metrics.prometheus;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.jvm.ClassLoaderMetrics;
-import io.micrometer.core.instrument.binder.jvm.DiskSpaceMetrics;
+import io.micrometer.core.instrument.binder.system.DiskSpaceMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmGcMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmThreadMetrics;
@@ -67,10 +67,10 @@ public class PrometheusMetricsProvider implements MetricsProvider {
 
     @Override
     public void scrape(HttpAction action) {
-        try (ServletOutputStream out = action.response.getOutputStream()) {
+        try (ServletOutputStream out = action.getResponseOutputStream()) {
             ServletOps.success(action);
-            action.response.setContentType( WebContent.contentTypeTextPlain );
-            action.response.setCharacterEncoding( WebContent.charsetUTF8 );
+            action.setResponseContentType( WebContent.contentTypeTextPlain );
+            action.setResponseCharacterEncoding( WebContent.charsetUTF8 );
 
             out.write( meterRegistry.scrape().getBytes() );
         } catch (Throwable t) {

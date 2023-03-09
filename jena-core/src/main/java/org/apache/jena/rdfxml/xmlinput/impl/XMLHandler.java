@@ -17,18 +17,19 @@
  */
 
 /* This file includes contributions by:
- * (c) Copyright 2003, Plugged In Software 
+ * (c) Copyright 2003, Plugged In Software
  * See end of file for BSD-style license.
  */
 
 package org.apache.jena.rdfxml.xmlinput.impl;
 
-import java.net.MalformedURLException ;
 import java.util.HashMap ;
 import java.util.Map ;
 
-import org.apache.jena.iri.IRI ;
-import org.apache.jena.iri.IRIFactory ;
+import org.apache.jena.irix.IRIException;
+import org.apache.jena.irix.IRIProvider;
+import org.apache.jena.irix.IRIx;
+import org.apache.jena.irix.SystemIRIx;
 import org.apache.jena.rdfxml.xmlinput.* ;
 import org.apache.jena.rdfxml.xmlinput.states.Frame ;
 import org.apache.jena.rdfxml.xmlinput.states.FrameI ;
@@ -41,19 +42,18 @@ import org.xml.sax.SAXParseException ;
 
 /**
  * This class converts SAX events into a stream of encapsulated events suitable
- * for the RDF parser. In effect, this is the RDF lexer. updates by kers to
- * handle exporting namespace prefix maps.
+ * for the RDF parser. In effect, this is the RDF lexer.
  */
 public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
         Names {
 
     boolean encodingProblems = false;
 
-    protected Map<IRI, Map<String,ARPLocation>> idsUsed = new HashMap<>();
+    protected Map<IRIx, Map<String,ARPLocation>> idsUsed = new HashMap<>();
     protected int idsUsedCount = 0;
 
     public XMLHandler() {}
-    
+
     public void triple(ANode s, ANode p, ANode o) {
         StatementHandler stmt;
         boolean bad=s.isTainted() || p.isTainted() || o.isTainted();
@@ -265,7 +265,7 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
     boolean ignoring(int eCode) {
         return options.getErrorMode(eCode) == EM_IGNORE;
     }
-    
+
     public boolean isError(int eCode) {
         return options.getErrorMode(eCode) == EM_ERROR;
     }
@@ -276,7 +276,7 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
     }
 
     private boolean allowRelativeReferences = false;
-    
+
     private AbsXMLContext initialContextWithBase(String base) throws SAXParseException {
         allowRelativeReferences = false;
             if (base == null) {
@@ -293,50 +293,10 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
                 return new XMLBaselessContext(this,
                         WARN_RESOLVING_URI_AGAINST_EMPTY_BASE);
             } else {
-//                if (base.toLowerCase().startsWith("file:")
-//                    && base.length()>5
-//                    && base.charAt(5) != '/'
-//                ) {
-//                    System.err.print(base);
-//                    try {
-//                        base = new File(base.substring(5)).toURL().toString();
-//                        if (base.length()<=6
-//                                || base.charAt(6)!= '/')
-//                            base = "file://"+base.substring(5);
-//                    } catch (MalformedURLException e) {
-//                        // ignore, just leave it alone.
-//                    }
-//                    System.err.println(" ==> "+base);
-//                    
-//                }
                 return new XMLBaselessContext(this,
                         ERR_RESOLVING_AGAINST_RELATIVE_BASE).withBase(this,base);
             }
     }
-    /*
-    private XMLContext initialContextWithBasex(String base)
-            throws SAXParseException {
-        XMLContext rslt = new XMLContext(this, base);
-        RDFURIReference b = rslt.getURI();
-        if (base == null) {
-            warning(null,IGN_NO_BASE_URI_SPECIFIED,
-                    "Base URI not specified for input file; local URI references will be in error.");
-
-        } else if (base.equals("")) {
-            warning(null,IGN_NO_BASE_URI_SPECIFIED,
-                    "Base URI specified as \"\"; local URI references will not be resolved.");
-
-        } else {
-            checkBadURI(null,b);
-            // Warnings on bad base.
-
-            // if (b.isVeryBad()||b.isRelative()) {
-            // return
-        }
-
-        return rslt;
-    }
-    */
 
     private ARPOptions options = ARPOptions.createNewOptions() ;
     private ARPHandlers handlers = ARPHandlers.createNewHandlers() ;
@@ -355,7 +315,7 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
 
     public void setOptionsWith(ARPOptions newOpts) {
            options = newOpts.copy();
-        
+
     }
 
     public void setHandlersWith(ARPHandlers newHh) {
@@ -364,14 +324,13 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
         handlers.setExtendedHandler(newHh.getExtendedHandler());
         handlers.setNamespaceHandler(newHh.getNamespaceHandler());
         handlers.setStatementHandler(newHh.getStatementHandler());
-       
     }
 
     private Map<String, Object> nodeIdUserData;
 
     public void initParse(String base, String lang) throws SAXParseException {
         nodeIdUserData = new HashMap<>();
-        idsUsed = 
+        idsUsed =
         	ignoring(WARN_REDEFINITION_OF_ID)?
         			null:
         	        new HashMap<>();
@@ -385,9 +344,7 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
     }
 
     /**
-     * This method must be always be called after parsing, e.g. in a finally
-     * block.
-     * 
+     * This method must be always be called after parsing, e.g. in a finally block.
      */
     void afterParse() {
         while (frame != null) {
@@ -413,31 +370,26 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
         return new ARPLocation(locator);
     }
 
-    private IRIFactory factory = null ;
-
-    IRIFactory iriFactory() {
-        if (factory == null) {
-            factory = options.getIRIFactory() ;
-            if ( factory == null )
-                factory = ARPOptions.getIRIFactoryGlobal() ;
+    private IRIProvider provider = null ;
+    IRIProvider iriProvider() {
+        if (provider == null) {
+            provider = options.getIRIProvider() ;
+            if ( provider == null )
+                provider = SystemIRIx.getProvider();
         }
-        return factory;
+        return provider;
     }
 
     private void checkNamespaceURI(String uri) throws SAXParseException {
         ((Frame) frame).checkEncoding(null,uri);
         if (uri.length() != 0)
              {
-                IRI u = iriFactory().create(uri);
-//                if (u.isVeryBad()) {
-//                    warning(null,
-//                            WARN_BAD_NAMESPACE_URI,
-//                            "The namespace URI: <"
-//                                    + uri
-//                                    + "> is not well formed.");
-//                    return;
-//                 
-//                }
+                IRIx u = iriProvider().create(uri);
+                try {
+                    u = IRIx.create(uri);
+                } catch (IRIException ex) {
+                    u = IRIx.createAny(uri);
+                }
                 if (!u.isAbsolute()) {
                     warning(null,
                             WARN_RELATIVE_NAMESPACE_URI_DEPRECATED,
@@ -445,20 +397,20 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
                                     + uri
                                     + "> is relative. Such use has been deprecated by the W3C, and may result in RDF interoperability failures. Use an absolute namespace URI.");
                 }
-                try {
-                    if (!u.toASCIIString().equals(u.toString()))
-                        warning(null,
-                                WARN_BAD_NAMESPACE_URI,
-                                "Non-ascii characters in a namespace URI may not be completely portable: <"
-                                        + u.toString()
-                                        + ">. Resulting RDF URI references are legal.");
-                } catch (MalformedURLException e) {
-                    warning(null,
-                            WARN_BAD_NAMESPACE_URI,
-                            "Bad namespace URI: <"
-                                    + u.toString()
-                                    + ">. " + e.getMessage());
-              } 
+//                try {
+//                    if (!u.toASCIIString().equals(u.toString()))
+//                        warning(null,
+//                                WARN_BAD_NAMESPACE_URI,
+//                                "Non-ascii characters in a namespace URI may not be completely portable: <"
+//                                        + u.toString()
+//                                        + ">. Resulting RDF URI references are legal.");
+//                } catch (MalformedURLException e) {
+//                    warning(null,
+//                            WARN_BAD_NAMESPACE_URI,
+//                            "Bad namespace URI: <"
+//                                    + u.toString()
+//                                    + ">. " + e.getMessage());
+//              }
 
                 if (uri.startsWith(rdfns) && !uri.equals(rdfns))
                     warning(null,WARN_BAD_RDF_NAMESPACE_URI, "Namespace URI ref <"
@@ -466,22 +418,21 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
                 if (uri.startsWith(xmlns) && !uri.equals(xmlns))
                     warning(null,WARN_BAD_XML_NAMESPACE_URI, "Namespace URI ref <"
                             + uri + "> may not be used in RDF/XML.");
-             }   
+             }
     }
 
     public boolean allowRelativeURIs() {
         return allowRelativeReferences;
     }
-    private IRI sameDocRef;
-    public IRI sameDocRef() {
-        if (sameDocRef==null){
-            sameDocRef = iriFactory().create("");
-        }
+    private IRIx sameDocRef;
+    public IRIx sameDocRef() {
+        if (sameDocRef==null)
+            sameDocRef = iriProvider().create("");
         return sameDocRef;
     }
 
     private StatementHandler badStatementHandler = nullStatementHandler;
-    
+
     public void setBadStatementHandler(StatementHandler sh) {
         badStatementHandler = sh;
     }
@@ -496,7 +447,7 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
         }
     };
     final public static ExtendedHandler nullScopeHandler = new ExtendedHandler() {
-        
+
         @Override
         public void endBNodeScope(AResource bnode) {
         }
@@ -516,8 +467,9 @@ public class XMLHandler extends LexicalHandlerImpl implements ARPErrorNumbers,
     };
 }
 
+// Some contributed code in this file are:
 /*
- *  (c) Copyright 2003, Plugged In Software 
+ *  (c) Copyright 2003, Plugged In Software
  *
  *  All rights reserved.
  *

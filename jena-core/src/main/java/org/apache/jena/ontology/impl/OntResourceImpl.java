@@ -154,7 +154,7 @@ public class OntResourceImpl
      */
     @Override
     public boolean isOntLanguageTerm() {
-        if (!isAnon()) {
+        if ( isURIResource() ) {
             for ( String KNOWN_LANGUAGE : KNOWN_LANGUAGES )
             {
                 if ( getURI().startsWith( KNOWN_LANGUAGE ) )
@@ -871,9 +871,9 @@ public class OntResourceImpl
      * <p>
      * Answer true if this resource is a member of the class denoted by the
      * given class resource.  Includes all available types, so is equivalent to
-     * <code><pre>
+     * <pre>
      * hasRDF( ontClass, false );
-     * </pre></code>
+     * </pre>
      * </p>
      *
      * @param ontClass Denotes a class to which this value may belong

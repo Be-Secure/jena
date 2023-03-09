@@ -31,6 +31,7 @@ import org.junit.runners.Suite.SuiteClasses;
     , TestExpressions.class
     , TestExpressions2.class
     , TestExpressions3.class
+    , TestExpressions4.class
     , TestCastXSD.class
     , TestNodeFunctions.class
     , TestExpressionsMath.class
@@ -40,6 +41,8 @@ import org.junit.runners.Suite.SuiteClasses;
     , TestLeviathanFunctions.class
     , TestNodeValueOps.class
     , TestOrdering.class
+    , TestComparison.class
+    , TestSortOrdering.class
     , TestRegex.class
     , TestXSDFuncOp.class
     , TestExprLib.class

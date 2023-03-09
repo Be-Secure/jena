@@ -62,7 +62,7 @@ public class TemplateLib {
             return quads ;
         if ( dftGraph == null || Quad.isDefaultGraph(dftGraph) )
             return quads ;
-        Stream<Quad> remappedStream = quads.stream().map(q-> 
+        Stream<Quad> remappedStream = quads.stream().map(q->
             !q.isDefaultGraph() ? q : new Quad(dftGraph, q.getSubject(), q.getPredicate(), q.getObject())
         ) ;
         return remappedStream.collect(Collectors.toList());
@@ -107,8 +107,7 @@ public class TemplateLib {
                 for ( Quad quad : quads ) {
                     Quad q = subst(quad, b, bNodeMap);
                     if ( !q.isConcrete() ) {
-                        // Log.warn(TemplateLib.class, "Unbound quad:
-                        // "+FmtUtils.stringForQuad(quad)) ;
+                        // Log.warn(TemplateLib.class, "Unbound quad:"+FmtUtils.stringForQuad(quad)) ;
                         continue;
                     }
                     quadList.add(q);
@@ -172,7 +171,7 @@ public class TemplateLib {
 
         Triple t = triple;
         if ( s1 != s || p1 != p || o1 != o )
-            t = new Triple(s1, p1, o1);
+            t = Triple.create(s1, p1, o1);
 
         Triple t2 = Substitute.substitute(t, b);
         return t2;

@@ -30,6 +30,7 @@ import org.apache.jena.graph.impl.WrappedGraph;
 import org.apache.jena.rdf.model.Model ;
 import org.apache.jena.shared.PrefixMapping ;
 import org.apache.jena.shared.impl.PrefixMappingImpl ;
+import org.apache.jena.util.iterator.ExtendedIterator;
 
 public class PrefixMappingUtils {
     /**
@@ -41,7 +42,7 @@ public class PrefixMappingUtils {
      * Later changes to the prefix mapping of the original graph are not reflected in the returned graph.
      * Modifications to the triples contained in the underlying graph are reflected.
      */
-    public static Graph graphxInUsePrefixMapping(Graph graph) {
+    public static Graph graphInUsePrefixMapping(Graph graph) {
         final PrefixMapping prefixMapping = calcInUsePrefixMapping(graph) ;
         prefixMapping.lock() ;
         Graph graph2 = new WrappedGraph(graph) {
@@ -109,17 +110,19 @@ public class PrefixMappingUtils {
         Trie<String> trie = new Trie<>() ;
         // Change this to "add(uri, uri)" to calculate the uris.
         pmap.forEach((prefix,uri)-> trie.add(uri, prefix)) ;
-        Iterator<Triple> iter = graph.find(null, null, null) ;
         // Prefixes in use.
         // (URIs if "add(uri, uri)")
         Set<String> inUse = new HashSet<>() ;
 
-        while(iter.hasNext()) {
-            Triple triple = iter.next() ;
-            process(triple, inUse, trie);
-            if ( pmap.size() == inUse.size() )
-                break ;
-        }
+        ExtendedIterator<Triple> iter = graph.find(null, null, null) ;
+        try {
+            while(iter.hasNext()) {
+                Triple triple = iter.next() ;
+                process(triple, inUse, trie);
+                if ( pmap.size() == inUse.size() )
+                    break ;
+            }
+        } finally { iter.close(); }
 
         if ( pmap.size() == inUse.size() )
             return prefixMapping ;

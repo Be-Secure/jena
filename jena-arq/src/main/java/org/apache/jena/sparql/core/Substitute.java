@@ -33,7 +33,14 @@ import org.apache.jena.sparql.engine.binding.BindingFactory;
 import org.apache.jena.sparql.expr.Expr;
 import org.apache.jena.sparql.expr.ExprList;
 import org.apache.jena.sparql.pfunction.PropFuncArg;
+import org.apache.jena.sparql.syntax.syntaxtransform.QueryTransformOps;
+import org.apache.jena.sparql.syntax.syntaxtransform.UpdateTransformOps;
 
+/**
+ * Substitution in SPARQL algebra.
+ * <p>
+ * See also {@link QueryTransformOps} and {@link UpdateTransformOps} which operate on SPARQL syntax.
+ */
 public class Substitute {
     public static Op substitute(Op op, Binding binding) {
         // Want to avoid cost if the binding is empty
@@ -75,11 +82,14 @@ public class Substitute {
 
         Triple t = triple;
         if ( s1 != s || p1 != p || o1 != o )
-            t = new Triple(s1, p1, o1);
+            t = Triple.create(s1, p1, o1);
         return t;
     }
 
     public static TriplePath substitute(TriplePath triplePath, Binding binding) {
+        if ( isNotNeeded(binding) )
+            return triplePath;
+
         if ( triplePath.isTriple() )
             return new TriplePath(Substitute.substitute(triplePath.asTriple(), binding));
 
@@ -115,6 +125,10 @@ public class Substitute {
     }
 
     public static Node substitute(Node n, Binding binding) {
+        if ( n == null )
+            return null;
+        if ( isNotNeeded(binding) )
+            return n;
         if ( ! n.isNodeTriple() )
             return Var.lookup(binding::get, n);
         if ( n.isConcrete() )
@@ -210,7 +224,7 @@ public class Substitute {
                 Node s = substitute(triple.getSubject(), binding);
                 Node p = substitute(triple.getPredicate(), binding);
                 Node o = substitute(triple.getObject(), binding);
-                Triple t = new Triple(s, p, o);
+                Triple t = Triple.create(s, p, o);
                 triples.add(t);
             }
 
@@ -225,7 +239,7 @@ public class Substitute {
             // Node s = substitute(quad.getSubject(), binding) ;
             // Node p = substitute(quad.getPredicate(), binding) ;
             // Node o = substitute(quad.getObject(), binding) ;
-            // Triple t = new Triple(s, p, o) ;
+            // Triple t = Triple.create(s, p, o) ;
             // triples.add(t) ;
             // }
 

@@ -319,7 +319,7 @@ public abstract class TurtleShell {
         }
 
         private Iterator<Node> listSubjects() {
-            return G.listSubjects(graph) ;
+            return G.iterSubjects(graph);
         }
 
         // ---- Data access
@@ -474,10 +474,22 @@ public abstract class TurtleShell {
             return Pair.create(x, eltsReversed) ;
         }
 
-        /** Return the triples of the list element, or null if invalid list */
+        /**
+         * Accumulate the triples of the list element.
+         * A valid node is:
+         * <ul>
+         * <li>A blank node.
+         * <li>is the subject of one {@code rdf:rest}
+         * <li>is the subject of one {@code rdf:first}
+         * <li>is the subject of no other triples
+         * </ul>
+         * Return true if valid else false.
+         */
         private boolean validListElement(Node x, List<Triple> acc) {
-            Triple t1 = triple1(x, RDF_Rest, null) ; // Which we came up to get
-                                                     // here :-(
+            if ( ! x.isBlank() )
+                return false;
+            // Which we came up to get here :-(
+            Triple t1 = triple1(x, RDF_Rest, null) ;
             if ( t1 == null )
                 return false ;
             Triple t2 = triple1(x, RDF_First, null) ;
@@ -545,6 +557,10 @@ public abstract class TurtleShell {
         // Write free standing lists - ones where the head is not an object of
         // some other triple. Turtle does not allow free standing (... ) .
         // so write as a predicateObjectList for one element.
+        // Later:
+        // RDF-star does not allow list syntax in quoted triples.
+        // (All that can go there are RDF terms).
+        // so write the head as a labelled bnode and the rest as a list.
         private boolean writeRemainingFreeLists(boolean somethingWritten) {
             for ( Node n : freeLists.keySet() ) {
                 if ( somethingWritten )
@@ -552,9 +568,11 @@ public abstract class TurtleShell {
                 somethingWritten = true ;
 
                 List<Node> x = freeLists.get(n) ;
-                // Print first element for the [ ... ]
-                out.print("[ ") ;
 
+                // Quick fix for lists put in quoted triples by API.
+                // Print first element for the list as a referenceable node.
+                writeNode(n) ;
+                print(" ") ;
                 writeNode(RDF_First) ;
                 print(" ") ;
                 writeNode(x.get(0)) ;
@@ -562,9 +580,25 @@ public abstract class TurtleShell {
                 writeNode(RDF_Rest) ;
                 print(" ") ;
                 x = x.subList(1, x.size()) ;
-                // Print remainder.
                 writeList(x) ;
-                out.println(" ] .") ;
+                out.println(" .") ;
+
+                // Pre RDF-star code. Remove when it is clear if the RDF-star WG is
+                // going to keep or change the syntax from the CG report.
+
+//                // Print first element for the [ ... ]
+//                out.print("[ ") ;
+//
+//                writeNode(RDF_First) ;
+//                print(" ") ;
+//                writeNode(x.get(0)) ;
+//                print(" ; ") ;
+//                writeNode(RDF_Rest) ;
+//                print(" ") ;
+//                x = x.subList(1, x.size()) ;
+//                // Print remainder.
+//                writeList(x) ;
+//                out.println(" ] .") ;
             }
             return somethingWritten ;
         }
@@ -748,6 +782,7 @@ public abstract class TurtleShell {
                 print("a") ;
             else
                 writeNode(p) ;
+
             int colPredicateFinish = out.getCol() ;
             int wPredicate = (colPredicateFinish - colPredicateStart) ;
 
@@ -755,7 +790,6 @@ public abstract class TurtleShell {
                 println() ;
             else {
                 out.pad(predicateMaxWidth) ;
-                // out.print(' ', predicateMaxWidth-wPredicate) ;
                 gap(GAP_P_O) ;
             }
         }

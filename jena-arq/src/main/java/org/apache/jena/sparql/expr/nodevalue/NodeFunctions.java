@@ -18,9 +18,12 @@
 
 package org.apache.jena.sparql.expr.nodevalue ;
 
+import static org.apache.commons.lang3.StringUtils.isNotEmpty;
+
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.UUID ;
+import java.util.function.Function;
 
 import javax.xml.datatype.DatatypeConstants;
 import javax.xml.datatype.DatatypeConstants.Field;
@@ -29,9 +32,13 @@ import javax.xml.datatype.Duration;
 import org.apache.jena.datatypes.xsd.XSDDatatype ;
 import org.apache.jena.graph.Node ;
 import org.apache.jena.graph.NodeFactory ;
+import org.apache.jena.graph.Triple;
 import org.apache.jena.irix.IRIException;
 import org.apache.jena.irix.IRIs;
 import org.apache.jena.irix.IRIx;
+import org.apache.jena.query.ARQ;
+import org.apache.jena.rdf.model.impl.Util;
+import org.apache.jena.riot.out.NodeFmtLib;
 import org.apache.jena.riot.system.RiotLib;
 import org.apache.jena.sparql.expr.ExprEvalException ;
 import org.apache.jena.sparql.expr.ExprTypeException ;
@@ -72,8 +79,10 @@ public class NodeFunctions {
      * Check for string operations with primary first arg and second arg
      * (e.g. CONTAINS).  The arguments are not used in the same way and the check
      * operation is not symmetric.
+     * <ul>
      * <li> "abc"@en is compatible with "abc"
      * <li> "abc" is NOT compatible with "abc"@en
+     * </ul>
      */
     public static void checkTwoArgumentStringLiterals(String label, NodeValue arg1, NodeValue arg2) {
 
@@ -109,28 +118,6 @@ public class NodeFunctions {
             return ;
 
         throw new ExprEvalException(label + ": Incompatible: " + arg1 + " and " + arg2) ;
-
-        // ----------
-
-//                if ( lang1.equals("") && !lang2.equals("") )
-//            throw new ExprEvalException(label + ": Incompatible: " + arg1 + " and " + arg2) ;
-//
-//
-//
-//        if ( n1.getLiteralDatatype() != null ) {
-//            // n1 is an xsd string by checkAndGetString
-//            if ( XSDDatatype.XSDstring.equals(n2.getLiteralDatatypeURI()) )
-//                return ;
-//            if ( n2.getLiteralLanguage().equals("") )
-//                return ;
-//            throw new ExprEvalException(label + ": Incompatible: " + arg1 + " and " + arg2) ;
-//        }
-//
-//        // Incompatible?
-//        // arg1 simple or xsd:string, arg2 has a lang.
-//        // arg1 with lang, arg2 has a different lang.
-//        if ( !lang1.equals("") && (!lang2.equals("") && !lang1.equals(lang2)) )
-//            throw new ExprEvalException(label + ": Incompatible: " + arg1 + " and " + arg2) ;
     }
 
     // -------- sameTerm
@@ -139,31 +126,34 @@ public class NodeFunctions {
         return NodeValue.booleanReturn(sameTerm(nv1.asNode(), nv2.asNode())) ;
     }
 
-    public static boolean sameTerm(Node n1, Node n2) {
-        if ( n1.equals(n2) )
+    /** sameTerm(x,y) */
+    public static boolean sameTerm(Node node1, Node node2) {
+        if ( node1.equals(node2) )
             return true ;
-        if ( n1.isLiteral() && n2.isLiteral() ) {
-            // But language tags are case insensitive.
-            String lang1 = n1.getLiteralLanguage() ;
-            String lang2 = n2.getLiteralLanguage() ;
-
-            if ( !lang1.equals("") && lang1.equalsIgnoreCase(lang2) ) {
-                // Two language tags, equal by case insensitivity.
-                boolean b = n1.getLiteralLexicalForm().equals(n2.getLiteralLexicalForm()) ;
-                if ( b )
-                    return true ;
-            }
+        if ( Util.isLangString(node1) && Util.isLangString(node2) ) {
+            String lex1 = node1.getLiteralLexicalForm();
+            String lex2 = node2.getLiteralLexicalForm();
+            if ( !lex1.equals(lex2) )
+                return false;
+            return node1.getLiteralLanguage().equalsIgnoreCase(node2.getLiteralLanguage());
+        }
+        if ( node1.isNodeTriple() && node2.isNodeTriple() ) {
+            return sameTriples(node1.getTriple(), node2.getTriple());
         }
         return false ;
     }
 
-    // -------- RDFterm-equals
-
-    public static NodeValue rdfTermEquals(NodeValue nv1, NodeValue nv2) {
-        return NodeValue.booleanReturn(rdfTermEquals(nv1.asNode(), nv2.asNode())) ;
+    private static boolean sameTriples(Triple t1, Triple t2) {
+        return sameTerm(t1.getSubject(), t2.getSubject())
+            && sameTerm(t1.getPredicate(), t2.getPredicate())
+            && sameTerm(t1.getObject(), t2.getObject());
     }
 
-    // Exact as defined by SPARQL spec.
+    // -------- RDFterm-equals -- raises an exception on "don't know" for literals.
+
+    // Exact as defined by SPARQL spec, when there are no value extensions.
+    // That means no language tag understanding.
+    //   Exception for two literals that might be equal but we don't know because of language tags.
     public static boolean rdfTermEquals(Node n1, Node n2) {
         if ( n1.equals(n2) )
             return true ;
@@ -172,17 +162,32 @@ public class NodeFunctions {
             // Two literals, may be sameTerm by language tag case insensitivity.
             String lang1 = n1.getLiteralLanguage() ;
             String lang2 = n2.getLiteralLanguage() ;
-
-            if ( !lang1.equals("") && lang1.equalsIgnoreCase(lang2) ) {
-                // Two language tags, equal by case insensitivity.
-                boolean b = n1.getLiteralLexicalForm().equals(n2.getLiteralLexicalForm()) ;
-                if ( b )
-                    return true ;
+            if ( isNotEmpty(lang1) && isNotEmpty(lang2) ) {
+                // Two language tags, both not "", equal by case insensitivity => lexical test.
+                if ( lang1.equalsIgnoreCase(lang2) ) {
+                    boolean b = n1.getLiteralLexicalForm().equals(n2.getLiteralLexicalForm()) ;
+                    if ( b )
+                        return true ;
+                }
             }
-            // Two literals, different terms, different language tags.
+
+            // Two literals:
+            //   Were not .equals
+            //   case 1: At least one language tag., not same lexical form -> unknown.
+            //   case 2: No language tags, not .equals -> unknown.
+            // Raise error (rather than return false).
             NodeValue.raise(new ExprEvalException("Mismatch in RDFterm-equals: " + n1 + ", " + n2)) ;
         }
-        // One or both not a literal.
+
+        if ( n1.isNodeTriple() && n2.isNodeTriple() ) {
+            Triple t1 = n1.getTriple();
+            Triple t2 = n2.getTriple();
+            return rdfTermEquals(t1.getSubject(), t2.getSubject())
+                && rdfTermEquals(t1.getPredicate(), t2.getPredicate())
+                && rdfTermEquals(t1.getObject(), t2.getObject());
+        }
+
+        // Not both literal nor both triple terms - .equals would have worked.
         return false ;
     }
 
@@ -196,12 +201,19 @@ public class NodeFunctions {
             return node.getLiteral().getLexicalForm() ;
         if ( node.isURI() )
             return node.getURI() ;
-        // if ( node.isBlank() ) return node.getBlankNodeId().getLabelString() ;
-        // if ( node.isBlank() ) return "" ;
+        if ( node.isBlank() && ! ARQ.isTrue(ARQ.strictSPARQL) )
+             return RiotLib.blankNodeToIriString(node);
+        if ( node.isNodeTriple() && ! ARQ.isTrue(ARQ.strictSPARQL) ) {
+            Triple t = node.getTriple();
+            // Recursion. Assumes no cycles!
+            Function<Node, String> f = NodeFmtLib::strTTL;
+            return "<< " + f.apply(t.getSubject()) + " " + f.apply(t.getPredicate()) + " " + f.apply(t.getObject()) + " >>";
+        }
         if ( node.isBlank() )
-            NodeValue.raise(new ExprTypeException("Blank node: " + node)) ;
-
-        NodeValue.raise(new ExprEvalException("Not a string: " + node)) ;
+            NodeValue.raise(new ExprEvalException("Blank node: " + node)) ;
+        if ( node.isNodeTriple())
+            NodeValue.raise(new ExprEvalException("Quoted triple: " + node)) ;
+        NodeValue.raise(new ExprEvalException("Not valid for STR(): " + node)) ;
         return "[undef]" ;
     }
 
@@ -421,11 +433,12 @@ public class NodeFunctions {
         return NodeFactory.createURI(iri) ;
     }
 
-    //
     private static String resolveCheckIRI(String baseIRI, String iriStr) {
         try {
             IRIx iri = IRIx.create(iriStr);
             IRIx base = ( baseIRI != null ) ? IRIx.create(baseIRI) : IRIs.getSystemBase();
+            if ( base.isRelative() )
+                throw new ExprEvalException("Relative IRI for base: " + iriStr) ;
             IRIx result = base.resolve(iri);
             if ( ! result.isReference() )
                 throw new IRIException("Not suitable: "+result.str());
@@ -493,7 +506,7 @@ public class NodeFunctions {
         if ( seconds == 0 )
             return XSDFuncOp.zeroDuration;
         Duration dur = NodeValue.xmlDatatypeFactory.newDuration(1000*seconds);
-        // Neaten the duration. Not all the fields ar zero.
+        // Neaten the duration. Not all the fields are zero.
         dur = NodeValue.xmlDatatypeFactory.newDuration(dur.getSign()>=0,
                                                        field(dur, DatatypeConstants.YEARS),
                                                        field(dur, DatatypeConstants.MONTHS),

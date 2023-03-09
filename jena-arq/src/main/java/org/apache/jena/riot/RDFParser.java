@@ -24,27 +24,36 @@ import static org.apache.jena.riot.RDFLanguages.RDFJSON;
 import static org.apache.jena.riot.RDFLanguages.sameLang;
 
 import java.io.*;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
-import org.apache.http.client.HttpClient;
 import org.apache.jena.atlas.io.IO;
 import org.apache.jena.atlas.lib.InternalErrorException;
 import org.apache.jena.atlas.web.ContentType;
 import org.apache.jena.atlas.web.TypedInputStream;
 import org.apache.jena.graph.Graph;
+import org.apache.jena.http.HttpLib;
+import org.apache.jena.irix.IRIs;
 import org.apache.jena.irix.IRIxResolver;
 import org.apache.jena.query.Dataset;
+import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.riot.process.normalize.StreamCanonicalLangTag;
 import org.apache.jena.riot.process.normalize.StreamCanonicalLiterals;
 import org.apache.jena.riot.system.*;
 import org.apache.jena.riot.system.stream.StreamManager;
-import org.apache.jena.riot.web.HttpOp;
+import org.apache.jena.riot.web.HttpNames;
 import org.apache.jena.sparql.core.DatasetGraph;
+import org.apache.jena.sparql.core.DatasetGraphFactory;
+import org.apache.jena.sparql.graph.GraphFactory;
 import org.apache.jena.sparql.util.Context;
 
 /**
@@ -76,27 +85,30 @@ import org.apache.jena.sparql.util.Context;
 public class RDFParser {
     /*package*/ enum LangTagForm { NONE, LOWER_CASE, CANONICAL }
 
-    private final String            uri;
-    private final Path              path;
-    private final String            content;
-    private final InputStream       inputStream;
-    private final Reader            javaReader;
-    private final StreamManager     streamManager;
+    private final String              uri;
+    private final Path                path;
+    private final String              stringToParse;
+    private final InputStream         inputStream;
+    private final Reader              javaReader;
+    private final StreamManager       streamManager;
 
-    private final HttpClient        httpClient;
-    private final Lang              hintLang;
-    private final Lang              forceLang;
-    private final String            baseURI;
-    private final boolean           strict;
-    private final boolean           resolveURIs;
-    private final IRIxResolver      resolver;
-    private final boolean           canonicalLexicalValues;
-    private final LangTagForm       langTagForm;
-    private final Optional<Boolean> checking;
-    private final FactoryRDF        factory;
-    private final ErrorHandler      errorHandler;
-    private final Context           context;
-
+    // Accept choice by the application
+    private final String              appAcceptHeader;
+    private final Map<String, String> httpHeaders;
+    private final HttpClient          httpClient;
+    private final Lang                hintLang;
+    private final Lang                forceLang;
+    private final String              baseURI;
+    private final boolean             strict;
+    private final boolean             resolveURIs;
+    private final IRIxResolver        resolver;
+    private final PrefixMap           prefixMap;
+    private final boolean             canonicalLexicalValues;
+    private final LangTagForm         langTagForm;
+    private final Optional<Boolean>   checking;
+    private final FactoryRDF          factory;
+    private final ErrorHandler        errorHandler;
+    private final Context             context;
     // Some cases the parser is reusable (read a file), some are not (input streams).
     private boolean                 canUseThisParser = true;
 
@@ -170,11 +182,13 @@ public class RDFParser {
     }
 
     /* package */ RDFParser(String uri, Path path, String content, InputStream inputStream, Reader javaReader,
-                            StreamManager streamManager, HttpClient httpClient,
-                            Lang hintLang, Lang forceLang, String parserBaseURI, boolean strict, Optional<Boolean> checking,
+                            StreamManager streamManager,
+                            String appAcceptHeader, Map<String, String> httpHeaders,
+                            HttpClient httpClient, Lang hintLang, Lang forceLang,
+                            String parserBaseURI, boolean strict, Optional<Boolean> checking,
                             boolean canonicalLexicalValues, LangTagForm langTagForm,
-                            boolean resolveURIs, IRIxResolver resolver, FactoryRDF factory,
-                            ErrorHandler errorHandler, Context context) {
+                            boolean resolveURIs, IRIxResolver resolver, PrefixMap prefixMap,
+                            FactoryRDF factory, ErrorHandler errorHandler, Context context) {
         int x = countNonNull(uri, path, content, inputStream, javaReader);
         if ( x >= 2 )
             throw new IllegalArgumentException("Only one source allowed: one of uri, path, content, inputStream and javaReader must be set");
@@ -186,10 +200,12 @@ public class RDFParser {
 
         this.uri = uri;
         this.path = path;
-        this.content = content;
+        this.stringToParse = content;
         this.inputStream = inputStream;
         this.javaReader = javaReader;
         this.streamManager = streamManager;
+        this.appAcceptHeader = appAcceptHeader;
+        this.httpHeaders = httpHeaders;
         this.httpClient = httpClient;
         this.hintLang = hintLang;
         this.forceLang = forceLang;
@@ -197,6 +213,7 @@ public class RDFParser {
         this.strict = strict;
         this.resolveURIs = resolveURIs;
         this.resolver = resolver;
+        this.prefixMap = prefixMap;
         this.canonicalLexicalValues = canonicalLexicalValues;
         this.langTagForm = langTagForm;
         this.checking = checking;
@@ -233,7 +250,9 @@ public class RDFParser {
     }
 
     /**
-     * Parse the source, sending the results to a {@link Graph}. The source must be for
+     * Parse the source, sending the results to a {@link Graph}.
+     * <p>
+     * The source must be for
      * triples; any quads are discarded.
      */
     public void parse(Graph graph) {
@@ -242,7 +261,10 @@ public class RDFParser {
 
     /**
      * Parse the source, sending the results to a {@link Model}.
-     * The source must be for triples; any quads are discarded.
+     * <p>
+     * The source must be for
+     * triples; any quads are discarded.
+     * <p>
      * This method is equivalent to {@code parse(model.getGraph())}.
      */
     public void parse(Model model) {
@@ -262,6 +284,46 @@ public class RDFParser {
      */
     public void parse(Dataset dataset) {
         parse(dataset.asDatasetGraph());
+    }
+
+    /**
+     * Parse the source in to a fresh {@link Graph} and return the graph.
+     * <p>
+     * The source must be for triples; any quads are discarded.
+     */
+    public Graph toGraph() {
+        Graph graph = GraphFactory.createDefaultGraph();
+        parse(StreamRDFLib.graph(graph));
+        return graph;
+    }
+
+    /**
+     * Parse the source in to a fresh {@link Model} and return the model.
+     * <p>
+     * The source must be for triples; any quads are discarded.
+     */
+    public Model toModel() {
+        Model model = ModelFactory.createDefaultModel();
+        parse(model);
+        return model;
+    }
+
+    /**
+     * Parse the source in to a fresh {@link Dataset} and return the dataset.
+     */
+    public Dataset toDataset() {
+        Dataset dataset = DatasetFactory.createTxnMem();
+        parse(dataset);
+        return dataset;
+    }
+
+    /**
+     * Parse the source in to a fresh {@link DatasetGraph} and return the DatasetGraph.
+     */
+    public DatasetGraph toDatasetGraph() {
+        DatasetGraph dataset = DatasetGraphFactory.createTxnMem();
+        parse(StreamRDFLib.dataset(dataset));
+        return dataset;
     }
 
     /**
@@ -290,7 +352,7 @@ public class RDFParser {
             default : throw new InternalErrorException("langTagForm = "+langTagForm);
         }
 
-        if ( isNonNull(content, inputStream, javaReader) ) {
+        if ( isNonNull(stringToParse, inputStream, javaReader) ) {
             parseNotUri(destination);
             return;
         }
@@ -335,14 +397,11 @@ public class RDFParser {
             throw new RiotException("Failed to determine the RDF syntax (.lang or .base required)");
 
         ReaderRIOT readerRiot = createReader(ct);
-        if ( readerRiot == null ) {
-//            readerRiot = createReader(lang);
-//            if ( readerRiot == null )
-                throw new RiotException("No parser registered for content type: " + ct.getContentTypeStr());
-        }
+        if ( readerRiot == null )
+            throw new RiotException("No parser registered for content type: " + ct.getContentTypeStr());
         Reader jr = javaReader;
-        if ( content != null )
-            jr = new StringReader(content);
+        if ( stringToParse != null )
+            jr = new StringReader(stringToParse);
 
         read(readerRiot, inputStream, jr, baseURI, context, ct, destination);
     }
@@ -383,14 +442,15 @@ public class RDFParser {
         // So map now.
         urlStr = streamManager.mapURI(urlStr);
         if ( urlStr.startsWith("http://") || urlStr.startsWith("https://") ) {
-            // HttpOp.execHttpGet(,acceptHeader,) overrides the HttpClient default setting.
-            //
-            // If there is an explicitly set HttpClient use that as given, and do not override
-            // the accept header (i.e. pass null to arg accpetHeader in execHttpGet).
-            // Else, use httpOp as setup and set the accept header.
-            String acceptHeader =
-                ( httpClient == null ) ? WebContent.defaultRDFAcceptHeader : null;
-            in = HttpOp.execHttpGet(urlStr, acceptHeader, httpClient, null);
+            // HTTP
+            String acceptHeader = HttpLib.dft(appAcceptHeader, WebContent.defaultRDFAcceptHeader);
+            HttpRequest request = HttpLib.newGetRequest(urlStr, (b)->{
+                if ( httpHeaders != null )
+                    httpHeaders.forEach(b::header);
+                b.setHeader(HttpNames.hAccept, acceptHeader);
+            });
+            HttpResponse<InputStream> response = HttpLib.execute(httpClient, request);
+            in = HttpLib.handleResponseTypedInputStream(response);
         } else {
             // Already mapped.
             in = streamManager.openNoMapOrNull(urlStr);
@@ -398,7 +458,6 @@ public class RDFParser {
         if ( in == null )
             throw new RiotNotFoundException("Not found: "+urlStr);
         return in ;
-
     }
 
     private ReaderRIOT createReader(Lang lang) {
@@ -446,16 +505,21 @@ public class RDFParser {
         } else {
             if ( ! strict )
                 checking$ = checking.orElseGet(()->true);
+            // Languages, like Turtle, where the base defaults to the system base.
+            // Setting the resolver directly overrides this.
+            if ( baseStr == null && resolve )
+                baseStr = IRIs.getBaseStr();
         }
         if ( sameLang(RDFJSON, lang) )
             // The JSON-LD subsystem handles this.
             resolve = false;
 
-        IRIxResolver parserResolver = (resolver != null) ? resolver
+        IRIxResolver parserResolver = (resolver != null)
+                ? resolver
                 : IRIxResolver.create().base(baseStr).resolve(resolve).allowRelative(allowRelative).build();
-        PrefixMap prefixMap = PrefixMapFactory.create();
+        PrefixMap pmap = ( this.prefixMap != null ) ? this.prefixMap : PrefixMapFactory.create();
         ParserProfileStd parserFactory = new ParserProfileStd(factory, errorHandler,
-                                                              parserResolver, prefixMap,
+                                                              parserResolver, pmap,
                                                               context, checking$, strict);
         return parserFactory;
     }

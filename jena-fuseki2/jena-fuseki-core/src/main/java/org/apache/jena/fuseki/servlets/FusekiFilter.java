@@ -28,7 +28,8 @@ import org.apache.jena.fuseki.Fuseki;
 import org.apache.jena.fuseki.server.Dispatcher;
 import org.slf4j.Logger;
 
-/** Look at all requests and see if they match a registered dataset name;
+/**
+ * Look at all requests and see if they match a registered dataset name;
  * if they do, pass down to the uber servlet, which can dispatch any request
  * for any service.
  */
@@ -36,10 +37,7 @@ public class FusekiFilter implements Filter {
     private static Logger log = Fuseki.serverLog;
 
     @Override
-    public void init(FilterConfig filterConfig) {
-//        log.info("Filter: ["+Utils.className(this)+"] ServletContextName = "+filterConfig.getServletContext().getServletContextName());
-//        log.info("Filter: ["+Utils.className(this)+"] ContextPath        = "+filterConfig.getServletContext().getContextPath());
-    }
+    public void init(FilterConfig filterConfig) {}
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)

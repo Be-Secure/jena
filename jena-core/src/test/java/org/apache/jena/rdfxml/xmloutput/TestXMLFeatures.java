@@ -26,6 +26,7 @@ import java.util.Set ;
 import java.util.regex.Pattern ;
 
 import org.apache.jena.graph.* ;
+import org.apache.jena.irix.IRIException;
 import org.apache.jena.rdf.model.Model ;
 import org.apache.jena.rdf.model.ModelFactory ;
 import org.apache.jena.rdf.model.RDFReaderI ;
@@ -33,9 +34,9 @@ import org.apache.jena.rdf.model.RDFWriterI ;
 import org.apache.jena.rdf.model.impl.RDFDefaultErrorHandler ;
 import org.apache.jena.rdf.model.impl.Util ;
 import org.apache.jena.rdf.model.test.ModelTestBase ;
+import org.apache.jena.rdfxml.xmlinput.RDFXMLReader;
 import org.apache.jena.rdfxml.xmloutput.impl.BaseXMLWriter ;
 import org.apache.jena.rdfxml.xmloutput.impl.SimpleLogger ;
-import org.apache.jena.shared.BadURIException ;
 import org.apache.jena.shared.InvalidPropertyURIException ;
 import org.apache.jena.shared.JenaException ;
 import org.apache.jena.vocabulary.RDF ;
@@ -111,7 +112,7 @@ public class TestXMLFeatures extends XMLOutputTestBase {
 	 * This test checks that using a FileWriter works. It used not to work for
 	 * some encodings. The encoding used is the platform default encoding.
 	 * Because this may be MacRoman, we have to suppress warning messages.
-	 * 
+	 *
 	 * @throws IOException
 	 */
 	public void testBug696057() throws IOException {
@@ -243,35 +244,35 @@ public class TestXMLFeatures extends XMLOutputTestBase {
 		// }
 		// });
 	}
-        
+
         // JENA-24
         public void testDisallowedXMLNamespace() throws IOException {
 		// xml, if present, must be bound to correct namespaces
-                
+
                 // fine, though ill-advised
 		check(file1, null, Change.setPrefix("xml", "http://www.w3.org/XML/1998/namespace"));
-                
+
                 // bad, but not fatal now -- we probably ought to raise an warning
                 check(file1, null, Change.setPrefix("notxml", "http://www.w3.org/XML/1998/namespace"));
-                
+
                 // bad, will warn
                 check(file1, null, null, null, true, Change.setPrefix("xml", "http://example.org/#"));
 	}
-        
+
         // JENA-24
         public void testDisallowedXMLNSNamespace() throws IOException {
 		// xmlns, if present, must be bound to correct namespace
-                
+
                 // fine, though ill-advised
 		check(file1, null, Change.setPrefix("xmlns", "http://www.w3.org/2000/xmlns/"));
-                
+
                 // bad, but not fatal now -- we probably ought to raise an warning
                 check(file1, null, Change.setPrefix("notxmlns", "http://www.w3.org/2000/xmlns/"));
-                
+
                 // bad, will warn
                 check(file1, null, null, null, true, Change.setPrefix("xmlns", "http://example.org/#"));
 	}
-        
+
 	public void testDuplicateNamespace() throws IOException {
 		check(
 				file1,
@@ -426,6 +427,7 @@ public class TestXMLFeatures extends XMLOutputTestBase {
         Model m = ModelFactory.createModelForGraph(g) ;
         // serialize
 
+        @SuppressWarnings("deprecation")
         RDFWriterI rw = m.getWriter(lang) ;
         if ( p != null )
             rw.setProperty(p, val) ;
@@ -443,7 +445,7 @@ public class TestXMLFeatures extends XMLOutputTestBase {
             }
             // read back in
             Model m2 = createMemModel() ;
-            RDFReaderI rdr = m2.getReader("RDF/XML") ;
+            RDFReaderI rdr = new RDFXMLReader();
             rdr.setProperty("error-mode", "lax") ;
             try (StringReader sr = new StringReader(f)) {
                 rdr.read(m2, sr, "http://example.org/") ;
@@ -458,10 +460,10 @@ public class TestXMLFeatures extends XMLOutputTestBase {
                     assertTrue("Comparing Model written out and read in.", m.isIsomorphicWith(m2)) ;
                     break ;
             }
-        } catch (BadURIException e) {
+        } catch (IRIException ex) {
             if ( behaviour == BadURI )
                 return ;
-            throw e ;
+            throw ex ;
         } catch (InvalidPropertyURIException je) {
             if ( behaviour == BadPropURI )
                 return ;
@@ -512,9 +514,10 @@ public class TestXMLFeatures extends XMLOutputTestBase {
 	 * public void testBadProperty2() throws IOException {
 	 * checkPropURI("http:/a.b/", "brickley", "http://example.org/b#",
 	 * ExtraTriples); }
-	 * 
+	 *
 	 */
 	public void testRelativeAPI() {
+        @SuppressWarnings("deprecation")
 		RDFWriterI w = createMemModel().getWriter(lang);
 		String old = (String) w.setProperty("relativeURIs", "");
 		assertEquals("default value check", old,
@@ -537,6 +540,7 @@ public class TestXMLFeatures extends XMLOutputTestBase {
 
 		String contents ;
 		try ( ByteArrayOutputStream bos = new ByteArrayOutputStream() ) {
+	        @SuppressWarnings("deprecation")
 		    RDFWriterI writer = m.getWriter(lang);
 		    writer.setProperty("relativeURIs", relativeParam);
 		    writer.write(m, bos, base);

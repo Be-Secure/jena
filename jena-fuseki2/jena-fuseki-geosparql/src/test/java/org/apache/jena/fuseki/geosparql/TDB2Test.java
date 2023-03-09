@@ -17,26 +17,24 @@
  */
 package org.apache.jena.fuseki.geosparql;
 
-import com.beust.jcommander.JCommander;
-import com.github.jsonldjava.shaded.com.google.common.io.Files;
+import static org.junit.Assert.assertEquals;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.beust.jcommander.JCommander;
+import com.github.jsonldjava.shaded.com.google.common.io.Files;
+
 import org.apache.jena.fuseki.geosparql.cli.ArgsConfig;
 import org.apache.jena.geosparql.spatial.SpatialIndexException;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.QueryExecution;
-import org.apache.jena.query.QueryExecutionFactory;
 import org.apache.jena.query.QuerySolution;
 import org.apache.jena.query.ResultSet;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
-import org.junit.After;
-import org.junit.AfterClass;
-import static org.junit.Assert.assertEquals;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 /**
  *
@@ -53,7 +51,7 @@ public class TDB2Test {
     public static void setUpClass() throws DatasetException, SpatialIndexException {
 
         File tempTDBDir = Files.createTempDir();
-        String[] args = {"-rf", "geosparql_test.rdf>xml", "-i", "-t", tempTDBDir.getAbsolutePath(), "-t2"};
+        String[] args = {"-rf", "geosparql_test.rdf>xml", "-i", "-t", tempTDBDir.getAbsolutePath(), "-t2", "--port", "4047"};
 
         ArgsConfig argsConfig = new ArgsConfig();
         JCommander.newBuilder()
@@ -67,8 +65,6 @@ public class TDB2Test {
         //Configure server
         SERVER = new GeosparqlServer(argsConfig.getPort(), argsConfig.getDatsetName(), argsConfig.isLoopbackOnly(), dataset, argsConfig.isUpdateAllowed());
         SERVER.start();
-
-        System.out.println("Server: " + SERVER.getLocalServiceURL());
     }
 
     @AfterClass
@@ -89,7 +85,7 @@ public class TDB2Test {
      */
     @Test
     public void testMain() {
-        System.out.println("main");
+        //System.out.println("main");
 
         String query = "PREFIX geo: <http://www.opengis.net/ont/geosparql#>\n"
                 + "\n"
@@ -98,7 +94,7 @@ public class TDB2Test {
                 + "    <http://example.org/Geometry#PolygonH> geo:sfContains ?obj .\n"
                 + "}ORDER by ?obj";
         List<Resource> result = new ArrayList<>();
-        try (QueryExecution qe = QueryExecutionFactory.sparqlService(SERVER.getLocalServiceURL(), query)) {
+        try (QueryExecution qe = QueryExecution.service(SERVER.getLocalServiceURL()).query(query).build()) {
             ResultSet rs = qe.execSelect();
 
             while (rs.hasNext()) {

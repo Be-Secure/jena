@@ -55,8 +55,18 @@ public class Lang
     /** Alternative constant for {@link #NTRIPLES} */
     public static Lang NT ;
 
-    /** <a href="http://www.w3.org/TR/json-ld/">JSON-LD</a>. */
+    /**
+     * <a href="http://www.w3.org/TR/json-ld/">JSON-LD</a>.
+     * <p>
+     * This is the system default.
+     */
     public static Lang JSONLD ;
+
+    /** JSONLD 1.0 */
+    public static Lang JSONLD10 ;
+
+    /** JSONLD 1.1 */
+    public static Lang JSONLD11 ;
 
     /**
      * <a href="http://www.w3.org/TR/rdf-json/">RDF/JSON</a>.
@@ -74,6 +84,9 @@ public class Lang
 
     /** Alternative constant {@link #NQUADS} */
     public static Lang NQ ;
+
+    /** The RDF syntax <a href="https://jena.apache.org/documentation/io/rdf-binary.html">RDF Thrift</a> */
+    public static Lang RDFPROTO ;
 
     /** The RDF syntax <a href="https://jena.apache.org/documentation/io/rdf-binary.html">RDF Thrift</a> */
     public static Lang RDFTHRIFT ;
@@ -146,6 +159,7 @@ public class Lang
         Lang otherLang = (Lang)other ;
         return
             this.label == otherLang.label &&
+            this.altLabels.equals(otherLang.altLabels) &&
             this.contentType.equals(otherLang.contentType) &&
             this.altContentTypes.equals(otherLang.altContentTypes) &&
             this.fileExtensions.equals(otherLang.fileExtensions) ;

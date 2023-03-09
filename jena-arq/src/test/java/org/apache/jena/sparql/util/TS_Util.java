@@ -27,7 +27,9 @@ import org.junit.runners.Suite.SuiteClasses ;
     TestDateTimeParsing.class ,
     TestList.class ,
     TestFmtUtils.class,
-    TestVersion.class
+    TestVersion.class,
+    TestContextUtils.class,
+    TestIsoMatcher.class
 })
 public class TS_Util
 { }

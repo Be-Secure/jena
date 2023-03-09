@@ -1,18 +1,19 @@
 /*
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
- *  See the NOTICE file distributed with this work for additional
- *  information regarding copyright ownership.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 package org.apache.jena.dboe.storage.system;
@@ -35,6 +36,8 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.query.ReadWrite;
 import org.apache.jena.query.TxnType;
 import org.apache.jena.riot.system.PrefixMap;
+import org.apache.jena.shared.AddDeniedException;
+import org.apache.jena.shared.DeleteDeniedException;
 import org.apache.jena.sparql.core.DatasetGraphBaseFind;
 import org.apache.jena.sparql.core.DatasetGraphTriplesQuads;
 import org.apache.jena.sparql.core.Quad;
@@ -42,18 +45,17 @@ import org.apache.jena.sparql.core.Transactional;
 
 /** Alternative: DatasetGraph over RDFStorage, using DatasetGraphBaseFind
  *  Collapses DatasetGraphTriplesQuads into this adapter class.
-<pre>
-DatasetGraph
-  DatasetGraphBase
-    DatasetGraphBaseFind
-      DatasetGraphStorageDirect
-</pre>
-/**
+ *  <pre>
+ *   DatasetGraph
+ *     DatasetGraphBase
+ *       DatasetGraphBaseFind
+ *         DatasetGraphStorage
+ *    </pre>
+ *
  * A DatasetGraph base class for triples+quads storage. The machinery is really
  * the splitting between default and named graphs. This happens in two classes,
  * {@link DatasetGraphBaseFind} (for find splitting) and
- * {@link DatasetGraphTriplesQuads} add/delete splitting (it inherits
- * {@link DatasetGraphBaseFind}).
+ * {@link DatasetGraphTriplesQuads} add/delete splitting (it inherits {@link DatasetGraphBaseFind}).
  * <p>
  * Because storage is usually decomposing quads and triples, the default
  * behaviour is to work in s/p/o and g/s/p/o.
@@ -87,9 +89,9 @@ public class DatasetGraphStorage extends DatasetGraphBaseFind implements Databas
         this.txn = transactional;
     }
 
-    @Override public StorageRDF getData()               { return storage; }
-    @Override public StoragePrefixes getStoragePrefixes()    { return prefixes; }
-    @Override public Transactional getTransactional()   { return txn; }
+    @Override public StorageRDF getData()                   { return storage; }
+    @Override public StoragePrefixes getStoragePrefixes()   { return prefixes; }
+    @Override public Transactional getTransactional()       { return txn; }
 
     @Override
     public PrefixMap prefixes() {
@@ -174,6 +176,8 @@ public class DatasetGraphStorage extends DatasetGraphBaseFind implements Databas
 
     @Override
     public void add(Node g, Node s, Node p, Node o) {
+        if ( Quad.isUnionGraph(g))
+            throw new AddDeniedException("Can't add to the union graph");
         if ( g == null || Quad.isDefaultGraph(g) )
             storage.add(s,p,o);
         else
@@ -182,6 +186,8 @@ public class DatasetGraphStorage extends DatasetGraphBaseFind implements Databas
 
     @Override
     public void delete(Node g, Node s, Node p, Node o) {
+        if ( Quad.isUnionGraph(g))
+            throw new DeleteDeniedException("Can't remove from the union graph");
         if ( g == null || Quad.isDefaultGraph(g) )
             storage.delete(s,p,o);
         else
@@ -198,5 +204,17 @@ public class DatasetGraphStorage extends DatasetGraphBaseFind implements Databas
     public void removeGraph(Node graphName) {
         storage.removeAll(graphName, Node.ANY, Node.ANY, Node.ANY);
         prefixes.deleteAll(graphName);
+    }
+
+    @Override
+    public long size() {
+        // Slow!
+        return stream()
+                .map(Quad::getGraph).filter(gn->!Quad.isDefaultGraph(gn)).distinct().count();
+    }
+
+    @Override
+    public String toString() {
+        return "DB: "+getClass().getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(this));
     }
 }

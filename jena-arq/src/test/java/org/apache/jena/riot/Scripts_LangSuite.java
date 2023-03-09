@@ -18,8 +18,8 @@
 
 package org.apache.jena.riot;
 
-import org.apache.jena.arq.junit.manifest.Label;
 import org.apache.jena.arq.junit.manifest.Manifests;
+import org.apache.jena.arq.junit.runners.Label;
 import org.apache.jena.arq.junit.runners.RunnerRIOT;
 import org.junit.runner.RunWith ;
 
@@ -28,8 +28,7 @@ import org.junit.runner.RunWith ;
 @RunWith(RunnerRIOT.class)
 @Label("RIOT")
 @Manifests({
-    "testing/RIOT/Lang/manifest-all.ttl",
-    "testing/ARQ/RDF-star/Turtle-star/manifest.ttl"
+    "testing/RIOT/Lang/manifest-all.ttl"
 })
 
 public class Scripts_LangSuite

@@ -18,7 +18,11 @@
 
 package org.apache.jena.arq.junit.riot ;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import org.apache.jena.arq.junit.LibTestSetup;
+import org.apache.jena.arq.junit.SurpressedTest;
 import org.apache.jena.arq.junit.manifest.ManifestEntry;
 import org.apache.jena.rdf.model.Resource ;
 import org.apache.jena.riot.RDFLanguages ;
@@ -30,12 +34,15 @@ public class RiotTests
     public static String assumedRootURIex = "http://example/base/" ;
 
     // Depends on origin of the tests.
-    //public static String assumedRootURITurtle = "http://w3c.github.io/rdf-tests/turtle/";
+
+//    public static String assumedRootURITurtle = "http://w3c.github.io/rdf-tests/turtle/";
+//    public static String assumedRootURITriG = "http://w3c.github.io/rdf-tests/trig/";
+
     public static String assumedRootURITurtle = "http://www.w3.org/2013/TurtleTests/" ;
     public static String assumedRootURITriG = "http://www.w3.org/2013/TriGTests/" ;
 
+    /** Create a RIOT language test - or return null for "unrecognized" */
     public static Runnable makeRIOTTest(ManifestEntry entry) {
-
         //Resource manifest = entry.getManifest();
         Resource item = entry.getEntry();
         String testName = entry.getName();
@@ -43,13 +50,10 @@ public class RiotTests
         Resource result = entry.getResult();
 
         String labelPrefix = "[RIOT]";
-        Resource dftTestType = null;
 
         try
         {
             Resource testType = LibTestSetup.getResource(item, RDF.type) ;
-            if ( testType == null )
-                testType = dftTestType ;
             if ( testType == null )
                 throw new RiotException("Can't determine the test type") ;
 
@@ -60,35 +64,48 @@ public class RiotTests
             Resource input = action ;
             Resource output = result ;
 
-            if ( testType.equals(VocabLangRDF.TestPositiveSyntaxTTL) )
-                return new RiotSyntaxTest(entry, RDFLanguages.TURTLE, true) ;
+            // Some tests assume a certain base URI.
+
+            // == Syntax tests.
+
+            // TTL
+            if ( testType.equals(VocabLangRDF.TestPositiveSyntaxTTL) ) {
+                String base = rebase(input, assumedRootURITurtle);
+                return new RiotSyntaxTest(entry, base, RDFLanguages.TURTLE, true) ;
+            }
             if ( testType.equals(VocabLangRDF.TestNegativeSyntaxTTL) )
                 return new RiotSyntaxTest(entry, RDFLanguages.TURTLE, false) ;
 
-            if ( testType.equals(VocabLangRDF.TestPositiveSyntaxTriG) )
-                return new RiotSyntaxTest(entry, RDFLanguages.TRIG, true) ;
+            // TRIG
+            if ( testType.equals(VocabLangRDF.TestPositiveSyntaxTriG) ) {
+                    String base = rebase(input, assumedRootURITriG);
+                    return new RiotSyntaxTest(entry, base, RDFLanguages.TRIG, true) ;
+                }
             if ( testType.equals(VocabLangRDF.TestNegativeSyntaxTriG) )
                 return new RiotSyntaxTest(entry, RDFLanguages.TRIG, false) ;
 
+            // NT
             if ( testType.equals(VocabLangRDF.TestPositiveSyntaxNT) )
                 return new RiotSyntaxTest(entry, RDFLanguages.NTRIPLES, true) ;
             if ( testType.equals(VocabLangRDF.TestNegativeSyntaxNT) )
                 return new RiotSyntaxTest(entry, RDFLanguages.NTRIPLES, false) ;
 
+            // NQ
             if ( testType.equals(VocabLangRDF.TestPositiveSyntaxNQ) )
                 return new RiotSyntaxTest(entry, RDFLanguages.NQUADS, true) ;
             if ( testType.equals(VocabLangRDF.TestNegativeSyntaxNQ) )
                 return new RiotSyntaxTest(entry, RDFLanguages.NQUADS, false) ;
 
+            // Other
             if ( testType.equals(VocabLangRDF.TestPositiveSyntaxRJ) )
                 return new RiotSyntaxTest(entry, RDFLanguages.RDFJSON, true) ;
             if ( testType.equals(VocabLangRDF.TestNegativeSyntaxRJ) )
                 return new RiotSyntaxTest(entry, RDFLanguages.RDFJSON, false) ;
 
             if ( testType.equals(VocabLangRDF.TestSurpressed ))
-                return new SurpressedTest() ;
+                return new SurpressedTest(entry) ;
 
-            // Eval.
+            // == Eval tests
 
             if ( testType.equals(VocabLangRDF.TestEvalTTL) ) {
                 String base = rebase(input, assumedRootURITurtle);
@@ -123,12 +140,10 @@ public class RiotTests
             }
 //            if ( testType.equals(VocabLangRDF.TestNegativeEvalRJ) ) {
 //                String base = rebase(input, assumedRootURIex) ;
-//                return new EvalTest(entry, base, RDFLanguages.RDFJSON, false);
+//                return new RiotEvalTest(entry, base, RDFLanguages.RDFJSON, false);
 //            }
 
-            System.err.println("Unrecognized test : ("+testType+")" + testName) ;
-            return new SurpressedTest() ;
-
+            return null;
         } catch (Exception ex)
         {
             ex.printStackTrace(System.err) ;
@@ -143,4 +158,35 @@ public class RiotTests
         baseIRI = baseIRI+x ;
         return baseIRI ;
     }
+
+    static Set<String> allowWarningSet = new HashSet<>();
+    static {
+        // example:
+        //allowWarningSet.add("#turtle-eval-bad-01");
+    }
+
+    /** Tune tests for warnings. */
+    // Some tests have U+FFFD which, in Jena, generates a helpful warning.
+    // Some tests have <http:g> which RIOT warns about but passes.
+    /*package*/ static boolean allowWarnings(ManifestEntry testEntry) {
+      String fragment = fragment(testEntry.getURI());
+      if ( fragment == null )
+          return false;
+      if ( fragment.endsWith("UTF8_boundaries") || fragment.endsWith("character_boundaries") )
+          // Boundaries of the Unicode allowed character blocks.
+          return true;
+      if ( fragment.contains("IRI-resolution") )
+
+          return true;
+      return false;
+    }
+
+    /*package*/ static String fragment(String uri) {
+        if ( uri == null )
+            return null;
+        int j = uri.lastIndexOf('#') ;
+        String frag = (j >= 0) ? uri.substring(j) : uri ;
+        return frag ;
+    }
+
 }

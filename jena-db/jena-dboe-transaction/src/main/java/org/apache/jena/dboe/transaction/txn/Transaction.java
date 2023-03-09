@@ -107,14 +107,14 @@ public class Transaction implements TransactionInfo {
         setState(ACTIVE);
     }
 
-    private boolean promoteReadCommitted() {
+    private boolean isPromoteReadCommitted() {
         if ( txnType == TxnType.READ_COMMITTED_PROMOTE ) return true;
         if ( txnType == TxnType.READ_PROMOTE ) return false;
         return false;
     }
 
     public boolean promote() {
-        return promote(promoteReadCommitted());
+        return promote(isPromoteReadCommitted());
     }
 
     public boolean promote(boolean readCommitted) {
@@ -140,7 +140,7 @@ public class Transaction implements TransactionInfo {
     public void notifyUpdate() {
         checkState(ACTIVE);
         if ( mode == ReadWrite.READ ) {
-            promote(promoteReadCommitted());
+            promote(isPromoteReadCommitted());
             mode = ReadWrite.WRITE;
         }
     }
@@ -198,8 +198,6 @@ public class Transaction implements TransactionInfo {
     public void end() {
         txnMgr.notifyEndStart(this);
         if ( isWriteTxn() && getState() == ACTIVE ) {
-            //Log.warn(this, "Write transaction with no commit() or abort() before end()");
-            // Just abort process.
             abort$();
             endInternal();
             throw new TransactionException("Write transaction with no commit() or abort() before end() - forced abort");

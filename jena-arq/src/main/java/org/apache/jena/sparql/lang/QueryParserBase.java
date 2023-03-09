@@ -42,10 +42,7 @@ import org.apache.jena.sparql.ARQInternalErrorException ;
 import org.apache.jena.sparql.core.Prologue ;
 import org.apache.jena.sparql.core.TriplePath ;
 import org.apache.jena.sparql.core.Var ;
-import org.apache.jena.sparql.expr.E_Exists ;
-import org.apache.jena.sparql.expr.E_NotExists ;
-import org.apache.jena.sparql.expr.Expr ;
-import org.apache.jena.sparql.expr.ExprLib;
+import org.apache.jena.sparql.expr.*;
 import org.apache.jena.sparql.graph.NodeConst ;
 import org.apache.jena.sparql.modify.request.QuadAccSink ;
 import org.apache.jena.sparql.path.P_Link;
@@ -428,25 +425,25 @@ public class QueryParserBase
     }
 
     protected void insert(TripleCollector acc, Node s, Node p, Node o) {
-        acc.addTriple(new Triple(s, p, o)) ;
+        acc.addTriple(Triple.create(s, p, o)) ;
     }
 
     protected void insert(TripleCollectorMark acc, int index, Node s, Node p, Node o) {
-        acc.addTriple(index, new Triple(s, p, o)) ;
+        acc.addTriple(index, Triple.create(s, p, o)) ;
     }
 
     protected void insert(TripleCollector acc, Node s, Node p, Path path, Node o) {
         if ( p == null )
             acc.addTriplePath(new TriplePath(s, path, o)) ;
         else
-            acc.addTriple(new Triple(s, p, o)) ;
+            acc.addTriple(Triple.create(s, p, o)) ;
     }
 
     protected void insert(TripleCollectorMark acc, int index, Node s, Node p, Path path, Node o) {
         if ( p == null )
             acc.addTriplePath(index, new TriplePath(s, path, o)) ;
         else
-            acc.addTriple(index, new Triple(s, p, o)) ;
+            acc.addTriple(index, Triple.create(s, p, o)) ;
     }
 
     protected void insert(TripleCollector target, ElementPathBlock source) {
@@ -469,6 +466,39 @@ public class QueryParserBase
         String dtURI = n.getLiteralDatatypeURI() ;
         n = createLiteral(lex, lang, dtURI) ;
         return ExprLib.nodeToExpr(n) ;
+    }
+
+    // Makers of functions that need more than just a simple "new E_...".
+
+    // IRI(rel)
+    protected Expr makeFunction_IRI(Expr expr) {
+        return new E_IRI(prologue.getBaseURI(), expr);
+    }
+
+    protected Expr makeFunction_URI(Expr expr) {
+        return new E_URI(prologue.getBaseURI(), expr);
+    }
+
+    // IRI(base, rel) or IRI(rel, null)
+    protected Expr makeFunction_IRI(Expr expr1, Expr expr2) {
+        if ( expr2 == null )
+            return makeFunction_IRI(expr1);
+        return new E_IRI2(expr1, prologue.getBaseURI(), expr2);
+    }
+
+    protected Expr makeFunction_URI(Expr expr1, Expr expr2) {
+        if ( expr2 == null )
+            return makeFunction_URI(expr1);
+        return new E_URI2(expr1, prologue.getBaseURI(), expr2);
+    }
+
+    // Create a E_BNode function.
+    protected Expr makeFunction_BNode() {
+        return E_BNode.create();
+    }
+
+    protected Expr makeFunction_BNode(Expr expr) {
+        return E_BNode.create(expr);
     }
 
     // Utilities to remove escapes in strings.

@@ -23,18 +23,20 @@ import java.io.Reader;
 
 import org.apache.jena.atlas.io.PeekReader;
 import org.apache.jena.atlas.lib.InternalErrorException;
+import org.apache.jena.riot.SysRIOT;
 import org.apache.jena.riot.system.ErrorHandler;
 import org.apache.jena.riot.system.ErrorHandlerFactory;
+import org.slf4j.Logger;
 
-/** Builder for TokenizeText */
+/** Builder for TokenizerText */
 public class TokenizeTextBuilder {
-    
+
     // One of these.
     private PeekReader   peekReader   = null;
     private InputStream  input        = null;
     private Reader       reader       = null;
     private String       string       = null;
-    
+
     private boolean      lineMode     = false;
     private boolean      utf8         = true;
     private ErrorHandler errorHandler = null;
@@ -103,8 +105,14 @@ public class TokenizeTextBuilder {
         return x;
     }
 
+    private static Logger LOG = SysRIOT.getLogger();
+    // Default - errors are exceptions, warning are logged.
+    private static ErrorHandler errorHandlerDft() {
+        return ErrorHandlerFactory.errorHandlerWarnOrExceptions(LOG);
+    }
+
     public Tokenizer build() {
-        ErrorHandler errHandler = (errorHandler != null) ? errorHandler : ErrorHandlerFactory.errorHandlerExceptions();
+        ErrorHandler errHandler = (errorHandler != null) ? errorHandler : errorHandlerDft();
         int x = countNotNulls(peekReader, input, reader, string);
         if ( x > 1 )
             throw new InternalErrorException("Too many data sources");

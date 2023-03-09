@@ -23,7 +23,6 @@ import static java.lang.String.format;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringReader;
 import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -46,13 +45,15 @@ import org.apache.jena.fuseki.mgt.TemplateFunctions;
 import org.apache.jena.fuseki.server.DataAccessPoint;
 import org.apache.jena.fuseki.server.DataAccessPointRegistry;
 import org.apache.jena.fuseki.server.DataService;
-import org.apache.jena.fuseki.server.FusekiVocab;
 import org.apache.jena.fuseki.servlets.HttpAction;
 import org.apache.jena.fuseki.servlets.ServletOps;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.rdf.model.*;
+import org.apache.jena.rdfs.RDFSFactory;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.riot.RDFLanguages;
+import org.apache.jena.riot.RDFParser;
 import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.core.assembler.AssemblerUtils;
 
@@ -202,7 +203,7 @@ public class FusekiWebapp
 
     public static void copyFileFromResource(String fn, Path dstFile) {
         try {
-            // Get from the file from area "org/apache/jena/fuseki/server"  (our package)
+            // Get from the file from area "org/apache/jena/fuseki/webapp"  (our package)
             URL url = FusekiWebapp.class.getResource(fn);
             if ( url == null )
                 throw new FusekiConfigException("Failed to find resource '"+fn+"'");
@@ -240,16 +241,29 @@ public class FusekiWebapp
         if ( params.fusekiCmdLineConfigFile != null ) {
             List<DataAccessPoint> confDatasets = processServerConfigFile(params.fusekiCmdLineConfigFile);
             datasets.addAll(confDatasets);
-        }
-        else if ( params.fusekiServerConfigFile != null ) {
+        } else if ( params.fusekiServerConfigFile != null ) {
             List<DataAccessPoint> confDatasets = processServerConfigFile(params.fusekiServerConfigFile);
             datasets.addAll(confDatasets);
-        }
-        else if ( params.dsg != null ) {
+        } else if ( params.dsg != null ) {
+            // RDFS
+            if ( params.rdfsGraph != null ) {
+                Graph rdfsGraph = RDFDataMgr.loadGraph(params.rdfsGraph);
+                params.dsg = RDFSFactory.datasetRDFS(params.dsg, rdfsGraph);
+            }
             DataAccessPoint dap = datasetDefaultConfiguration(params.datasetPath, params.dsg, params.allowUpdate);
             datasets.add(dap);
         } else if ( params.templateFile != null ) {
             DataAccessPoint dap = configFromTemplate(params.templateFile, params.datasetPath, params.allowUpdate, params.params);
+            if ( params.rdfsGraph != null ) {
+                // RDFS
+                // Create a new DataAccessPoint - same name, same operations, different dataset.
+                DataService dSrv = dap.getDataService();
+                DatasetGraph dsg = dSrv.getDataset();
+                Graph rdfsGraph = RDFDataMgr.loadGraph(params.rdfsGraph);
+                DatasetGraph dsg2 = RDFSFactory.datasetRDFS(dsg, rdfsGraph);
+                DataService dSrv2 = DataService.newBuilder(dSrv).dataset(dsg2).build();
+                dap = new DataAccessPoint(dap.getName(), dSrv2);
+            }
             datasets.add(dap);
         }
         // No datasets is valid.
@@ -261,8 +275,7 @@ public class FusekiWebapp
             Fuseki.configLog.warn("Configuration file '" + configFilename+"' does not exist");
             return Collections.emptyList();
         }
-        Fuseki.configLog.info("Configuration file: " + configFilename);
-        //return FusekiConfig.readServerConfigFile(configFilename);
+        //Fuseki.configLog.info("Configuration file: " + configFilename);
         Model model = AssemblerUtils.readAssemblerFile(configFilename);
         if ( model.size() == 0 )
             return Collections.emptyList();
@@ -298,29 +311,17 @@ public class FusekiWebapp
         addGlobals(params);
 
         String str = TemplateFunctions.templateFile(templateFile, params, Lang.TTL);
-        Lang lang = RDFLanguages.filenameToLang(str, Lang.TTL);
-        StringReader sr =  new StringReader(str);
-        Model model = ModelFactory.createDefaultModel();
-        RDFDataMgr.read(model, sr, datasetPath, lang);
+        Lang lang = RDFLanguages.filenameToLang(templateFile, Lang.TTL);
+        Model model = RDFParser.fromString(str).base(datasetPath).lang(lang).toModel();
 
-        // ---- DataAccessPoint
-        Statement stmt = getOne(model, null, FusekiVocab.pServiceName, null);
-        if ( stmt == null ) {
-            StmtIterator sIter = model.listStatements(null, FusekiVocab.pServiceName, (RDFNode)null );
-            if ( ! sIter.hasNext() )
-                ServletOps.errorBadRequest("No name given in description of Fuseki service");
-            sIter.next();
-            if ( sIter.hasNext() )
-                ServletOps.errorBadRequest("Multiple names given in description of Fuseki service");
-            throw new InternalErrorException("Inconsistent: getOne didn't fail the second time");
+        List<DataAccessPoint> defns = FusekiConfig.servicesAndDatasets(model);
+        if ( defns.size() != 1 ) {
+            if ( defns.isEmpty() )
+                ServletOps.errorBadRequest("No description of a Fuseki service");
+            else
+                ServletOps.errorBadRequest("Multiple descriptions of Fuseki service");
         }
-        Resource subject = stmt.getSubject();
-        if ( ! allowUpdate ) {
-            // Opportunity for more sophisticated "read-only" mode.
-            //  1 - clean model, remove "fu:serviceUpdate", "fu:serviceUpload", "fu:serviceReadGraphStore", "fu:serviceReadWriteGraphStore"
-            //  2 - set a flag on DataAccessPoint
-        }
-        DataAccessPoint dap = FusekiConfig.buildDataAccessPoint(subject, registry);
+        DataAccessPoint dap = defns.get(0);
         return dap;
     }
 

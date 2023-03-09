@@ -30,7 +30,7 @@ import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.sparql.graph.GraphFactory;
 
 /** RIOT reader-writer tests for SHACL Compact Syntax */
-public class TestReaderWriterShaclCompact  extends AbstractTestShaclCompact{
+public class TestReaderWriterShaclCompact  extends AbstractTestShaclCompact {
 
     @Override
     protected void runTest(String fn, String ttl, String fileBaseName) {

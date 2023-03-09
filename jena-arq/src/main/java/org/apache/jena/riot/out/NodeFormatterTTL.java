@@ -42,6 +42,11 @@ public class NodeFormatterTTL extends NodeFormatterNT
     private final String      baseStrIRI;
     private final IRIx        baseIRI;
 
+    // Turtle: abbreviations for literals but no use of prefixes or base.
+    public NodeFormatterTTL() {
+        this(null, null, NodeToLabel.createBNodeByLabelEncoded()) ;
+    }
+
     public NodeFormatterTTL(String baseIRI, PrefixMap prefixMap) {
         this(baseIRI, prefixMap, NodeToLabel.createBNodeByLabelEncoded()) ;
     }
@@ -244,11 +249,12 @@ public class NodeFormatterTTL extends NodeFormatterNT
     @Override
     public void formatLitDT(AWriter w, String lex, String datatypeURI) {
         boolean b = writeLiteralAbbreviated(w, lex, datatypeURI) ;
-        if ( b ) return ;
-        writeLiteralLongForm(w, lex, datatypeURI) ;
+        if ( b )
+            return ;
+        writeLiteralWithDT(w, lex, datatypeURI) ;
     }
 
-    protected void writeLiteralLongForm(AWriter w, String lex, String datatypeURI) {
+    protected void writeLiteralWithDT(AWriter w, String lex, String datatypeURI) {
         writeLiteralOneLine(w, lex, datatypeURI);
     }
 
@@ -276,7 +282,7 @@ public class NodeFormatterTTL extends NodeFormatterNT
                 return true ;
             }
         } else if ( dtBoolean.equals(datatypeURI) ) {
-            // We leave "0" and "1" as-is assumign that if written like that,
+            // We leave "0" and "1" as-is assuming that if written like that,
             // there was a reason.
             if ( lex.equals("true") || lex.equals("false") ) {
                 w.print(lex) ;

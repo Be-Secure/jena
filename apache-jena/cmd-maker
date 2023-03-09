@@ -16,8 +16,8 @@
 ## See the License for the specific language governing permissions and
 ## limitations under the License.
 
-# Not tdbloader2.
-## tdbloader2 is slightly different.
+# Not xloader
+## xloader (forerly "TDB 1 tdbloader2") is slightly different.
 ##   The main program is not a java program
 ##   It is split into several scripts that leverage a mixture of 
 ##   POSIX and java tools and should be maintained separately
@@ -53,6 +53,8 @@ riotcmd.infer
 riotcmd.utf8
 riotcmd.rdfxml
 shacl.shacl
+shex.shex
+rdfpatch.rdfpatch
 tdb.tdbbackup
 tdb.tdbdump
 tdb.tdbloader
@@ -63,6 +65,7 @@ EOF
 )
 
 CMDS2=$(cat <<EOF
+jena.version
 tdb2.tdbbackup
 tdb2.tdbdump
 tdb2.tdbcompact

@@ -19,49 +19,46 @@
 package org.apache.jena.cmd;
 
 import org.apache.jena.atlas.io.IndentedWriter;
-import org.apache.jena.atlas.lib.Version ;
-
+import org.apache.jena.atlas.lib.Version;
 public class ModVersion extends ModBase
 {
-    protected final ArgDecl versionDecl = new ArgDecl(ArgDecl.NoValue, "version") ;
-    protected boolean version = false ;
-    protected boolean printAndExit = false ;
-    
-    private Version versionMgr = new Version() ; 
-    
-    public ModVersion(boolean printAndExit)
-    {
-        this.printAndExit = printAndExit ;
+    protected final ArgDecl versionDecl = new ArgDecl(ArgDecl.NoValue, "version");
+    protected boolean version = false;
+    protected boolean printAndExit = false;
+    private Version versionMgr = new Version();
+
+    public ModVersion(boolean printAndExit) {
+        this.printAndExit = printAndExit;
     }
-    
-    public void addClass(Class<?> c) { versionMgr.addClass(c) ; }
-    
-    @Override
-    public void registerWith(CmdGeneral cmdLine)
-    {
-        cmdLine.add(versionDecl, "--version", "Version information") ;
+
+    public void addClass(Class<? > c) {
+        versionMgr.addClass(c);
     }
 
     @Override
-    public void processArgs(CmdArgModule cmdLine)
-    {
+    public void registerWith(CmdGeneral cmdLine) {
+        cmdLine.add(versionDecl, "--version", "Version information");
+    }
+
+    @Override
+    public void processArgs(CmdArgModule cmdLine) {
         if ( cmdLine.contains(versionDecl) )
-            version = true ;
-        // The --version flag causes us to print and exit. 
+            version = true;
+        // The --version flag causes us to print and exit.
         if ( version && printAndExit )
-            printVersionAndExit() ;
+            printVersionAndExit();
     }
 
-    public boolean getVersionFlag() { return version ; }
-    
-    public void printVersion()
-    {
+    public boolean getVersionFlag() {
+        return version;
+    }
+
+    public void printVersion() {
         versionMgr.print(IndentedWriter.stdout);
-    }  
-     
-    public void printVersionAndExit()
-    {
-        printVersion() ;
-        System.exit(0) ;
+    }
+
+    public void printVersionAndExit() {
+        printVersion();
+        System.exit(0);
     }
 }

@@ -65,8 +65,10 @@ public class FusekiLogging
         "log4j2.properties"
     };
 
-    private static final boolean LogLogging     = System.getenv("FUSEKI_LOGLOGGING") != null || System.getProperty("fuseki.loglogging") != null;
-    
+    private static final boolean LogLogging =
+            System.getenv("FUSEKI_LOGLOGGING") != null ||
+            System.getProperty("fuseki.loglogging") != null;
+
     private static boolean loggingInitialized   = false;
 
     /**
@@ -82,7 +84,7 @@ public class FusekiLogging
         loggingInitialized = isInitialized;
     }
 
-    /** Set up logging - standalone and war packaging */
+    /** Set up logging. */
     public static synchronized void setLogging() {
         setLogging(null);
     }
@@ -93,8 +95,9 @@ public class FusekiLogging
     public static synchronized boolean hasInitialized() {
         return loggingInitialized;
     }
-    
-    /** Set up logging. Allow an extra location (string directory name without trailing "/"). This may be null
+
+    /**
+     * Set up logging. Allow an extra location. This may be null.
      *
      * @param extraDir
      */
@@ -106,8 +109,12 @@ public class FusekiLogging
         loggingInitialized = true;
 
         logLogging("Set logging");
-        // No loggers have been created but configuration may have been set up.
-        if ( checkSystemProperties("log4j.configurationFile") ) {
+
+        // Is there a log4j setup provided?
+        if ( checkSystemProperties("log4j2.configurationFile") ||
+             checkSystemProperties("log4j.configurationFile") ||    // Log4j2 legacy name
+             System.getenv("LOG4J_CONFIGURATION_FILE") != null )
+        {
             logLogging("External log4j2 setup");
             return ;
         }
@@ -167,7 +174,7 @@ public class FusekiLogging
         }
         return false;
     }
-    
+
     private static void loadConfiguration(InputStream inputStream, String resourceName) throws IOException {
         LogCtlLog4j2.resetLogging(inputStream, resourceName);
     }

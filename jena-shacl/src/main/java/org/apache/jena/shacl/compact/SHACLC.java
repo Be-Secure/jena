@@ -27,6 +27,7 @@ import org.apache.jena.shacl.compact.writer.WriterRIOTShaclc;
 import org.apache.jena.shacl.vocabulary.SHACL;
 import org.apache.jena.shared.PrefixMapping;
 import org.apache.jena.shared.impl.PrefixMappingImpl;
+import org.apache.jena.sys.JenaSystem;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 import org.apache.jena.vocabulary.XSD;
@@ -34,13 +35,34 @@ import org.apache.jena.vocabulary.XSD;
 /** SHACL Compact Syntax setup */
 public class SHACLC {
 
-    public static void init() {
-        // Lang.SHACLC is in RIOT RDFLanguages.
-        ReaderRIOTFactory factoryReader = (Lang language, ParserProfile profile)->new ReaderRIOTShaclc();
-        RDFParserRegistry.registerLangTriples(Lang.SHACLC, factoryReader);
+    private static final Object     initLock    = new Object();
+    private static volatile boolean initialized = false;
 
-        WriterGraphRIOTFactory factoryWriter = (rdfFormat)->new WriterRIOTShaclc();
-        RDFWriterRegistry.register(RDFFormat.SHACLC, factoryWriter);
+    public static void init() {
+        if ( initialized )
+            return;
+        synchronized(initLock) {
+            if ( initialized ) {
+                if ( JenaSystem.DEBUG_INIT )
+                    System.err.println("SHACLC.init - return");
+                return;
+            }
+            initialized = true;
+            if ( JenaSystem.DEBUG_INIT )
+                System.err.println("SHACLC.init - start");
+
+            // Reader
+            ReaderRIOTFactory factoryReader = (Lang language, ParserProfile profile)->new ReaderRIOTShaclc();
+            RDFParserRegistry.registerLangTriples(Lang.SHACLC, factoryReader);
+
+            // Writer
+            WriterGraphRIOTFactory factoryWriter = (rdfFormat)->new WriterRIOTShaclc();
+            RDFWriterRegistry.register(Lang.SHACLC, RDFFormat.SHACLC);
+            RDFWriterRegistry.register(RDFFormat.SHACLC, factoryWriter);
+
+            if ( JenaSystem.DEBUG_INIT )
+                System.err.println("SHACLC.init - finish");
+        }
     }
 
     /** Return a copy of the {@link PrefixMap} with the SHACLC standard prefixes added */
@@ -55,7 +77,6 @@ public class SHACLC {
     /** Return a copy of the {@link PrefixMap} with the SHACLC standard prefixes added */
     public static PrefixMap withStandardPrefixes() {
         PrefixMap pmap = PrefixMapFactory.create();
-        //pmap.add("owl",  OWL.getURI());
         return addStandardPrefixes(pmap);
     }
 

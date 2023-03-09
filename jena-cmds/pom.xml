@@ -21,7 +21,7 @@
   <parent>
     <groupId>org.apache.jena</groupId>
     <artifactId>jena</artifactId>
-    <version>4.0.0</version>
+    <version>4.8.0-SNAPSHOT</version>
     <relativePath>..</relativePath>
   </parent> 
 
@@ -46,45 +46,89 @@
   </licenses>
 
   <properties>
-    <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ssZ</maven.build.timestamp.format>
-    <build.time.xsd>${maven.build.timestamp}</build.time.xsd>
     <automatic.module.name>org.apache.jena.cmds</automatic.module.name>
   </properties>
   
   <dependencies>
+
+    <!--
+        This works ... 
+        except it breaks javadoc:javadoc building with Java11.
+        But it does work if Java17 is used for the build
+        
     <dependency>
       <groupId>org.apache.jena</groupId>
       <artifactId>apache-jena-libs</artifactId>
-      <version>4.0.0</version>
+      <version>4.7.0-SNAPSHOT</version>
       <type>pom</type>
+    </dependency>
+    -->
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-rdfpatch</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- Copied from apache-jena-libs
+         to avoid <type>pom</type>
+    -->
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-shacl</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-shex</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-tdb</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-tdb2</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.jena</groupId>
+      <artifactId>jena-rdfconnection</artifactId>
+      <version>4.8.0-SNAPSHOT</version>
     </dependency>
 
     <!-- Pull test code into scope -->
     <dependency>
       <groupId>org.apache.jena</groupId>
       <artifactId>jena-base</artifactId>
-      <version>4.0.0</version>
+      <version>4.8.0-SNAPSHOT</version>
       <classifier>tests</classifier>
       <optional>true</optional>
     </dependency>     
     <dependency>
       <groupId>org.apache.jena</groupId>
       <artifactId>jena-core</artifactId>
-      <version>4.0.0</version>
+      <version>4.8.0-SNAPSHOT</version>
       <classifier>tests</classifier>
       <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.apache.jena</groupId>
       <artifactId>jena-arq</artifactId>
-      <version>4.0.0</version>
+      <version>4.8.0-SNAPSHOT</version>
       <classifier>tests</classifier>
       <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.apache.jena</groupId>
       <artifactId>jena-shacl</artifactId>
-      <version>4.0.0</version>
+      <version>4.8.0-SNAPSHOT</version>
       <classifier>tests</classifier>
       <optional>true</optional>
     </dependency>
@@ -102,6 +146,15 @@
       <!-- This module can be used as a dependency downstream -->
       <optional>true</optional>
     </dependency>
+
+    <!--
+        And check jul to slf4j is not present.
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-jdk14</artifactId>
+      <optional>true</optional>
+    </dependency>
+    -->
 
     <dependency>
       <groupId>junit</groupId>
@@ -121,45 +174,7 @@
 
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <configuration>
-          <includes>
-            <include>**/TS_*.java</include>
-          </includes>
-        </configuration>
-      </plugin>
-
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-source-plugin</artifactId>
-
-        <executions>
-          <execution>
-            <id>attach-sources</id>
-            <goals>
-              <goal>jar-no-fork</goal>
-            </goals>
-          </execution>
-          <execution>
-            <id>attach-sources-test</id>
-            <goals>
-              <goal>test-jar-no-fork</goal>
-            </goals>
-          </execution>
-        </executions>
-
-      </plugin>
-
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
-        <configuration>
-          <archive>
-            <manifestEntries>
-              <Automatic-Module-Name>${automatic.module.name}</Automatic-Module-Name>
-            </manifestEntries>
-          </archive>
-        </configuration>
         <executions>
           <execution>
             <goals>
@@ -167,6 +182,29 @@
             </goals>
           </execution>
         </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <executions> 
+          <execution>
+            <id>attach-sources-test</id> 
+            <goals>
+              <goal>test-jar-no-fork</goal> 
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <includes>
+            <include>**/TS_*.java</include>
+          </includes>
+        </configuration>
       </plugin>
 
       <plugin>

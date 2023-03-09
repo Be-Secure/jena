@@ -18,17 +18,17 @@
 
 package org.apache.jena.riot;
 
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.github.jsonldjava.core.DocumentLoader;
 import com.github.jsonldjava.core.JsonLdOptions;
 
+import org.apache.jena.graph.Graph;
+import org.apache.jena.graph.Triple;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.rdf.model.Model;
@@ -36,16 +36,22 @@ import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
 import org.apache.jena.riot.system.ErrorHandlerFactory;
+import org.apache.jena.sparql.sse.SSE;
 import org.apache.jena.sparql.util.Context;
 import org.apache.jena.vocabulary.RDF;
 import org.junit.Test;
 
 public class TestJsonLDReader {
 
+    // These tests fail under some java11 (but not java17)
+    // for RIOT default JSON-LD 1.1 because Titanium contacts schema.org
+    // with java.net.http/HTTP2 (default version setting)
+    // which fails.
+
     @Test
     public final void simpleReadTest() throws IOException {
-        String jsonld = someSchemaDorOrgJsonld();
-        Dataset ds = jsonld2dataset(jsonld, null);
+        String jsonld = someSchemaDotOrgJsonld();
+        Dataset ds = jsonld2dataset(jsonld, null, Lang.JSONLD);
         assertJohnDoeIsOK(ds.getDefaultModel());
     }
 
@@ -55,14 +61,14 @@ public class TestJsonLDReader {
     @Test
     public final void overrideAtContextTest() throws JsonGenerationException, IOException {
         // some jsonld using schema.org's URI as "@context"
-        String jsonld = someSchemaDorOrgJsonld();
+        String jsonld = someSchemaDotOrgJsonld();
 
         // pass the jsonldContext to the read using a jena Context
         JsonLDReadContext jenaCtx = new JsonLDReadContext();
         jenaCtx.setJsonLDContext(schemaOrgResolvedContext());
 
         // read the jsonld, replacing its "@context"
-        Dataset ds = jsonld2dataset(jsonld, jenaCtx);
+        Dataset ds = jsonld2dataset(jsonld, jenaCtx, Lang.JSONLD);
 
         // check ds is correct
         assertJohnDoeIsOK(ds.getDefaultModel());
@@ -83,10 +89,29 @@ public class TestJsonLDReader {
         jenaCtx.setOptions(options);
 
         // read the jsonld, replacing its "@context"
-        Dataset ds = jsonld2dataset(jsonld, jenaCtx);
+        // Uses JsonLdOptions which is specific to jsonld-java (1.0).
+        Dataset ds = jsonld2dataset(jsonld, jenaCtx, Lang.JSONLD10);
 
         // check ds is correct
         assertJohnDoeIsOK(ds.getDefaultModel());
+    }
+
+    // JSONLD 1.1 : Titanium-json-ld
+
+    @Test
+    public void testJsonLdBase() {
+        // GH-1451
+        //    {
+        //        "@id": "./relative",
+        //        "@type": "RelType",
+        //        "http://example/p": { "@id" : "#frag" }
+        //     }
+        String jsonld = "{ '@id': './relative', '@type': 'RelType', 'http://example/p': { '@id' : '#frag' } }";
+        jsonld = jsonld.replaceAll("'",  "\"");
+        Graph g = RDFParser.fromString(jsonld).lang(Lang.JSONLD).base("http://base/abc").toGraph();
+        assertNotNull(g);
+        Triple t = SSE.parseTriple("( <http://base/relative> <http://example/p> <http://base/abc#frag> )");
+        assertTrue(g.contains(t));
     }
 
     /**
@@ -94,36 +119,31 @@ public class TestJsonLDReader {
      * @return a new Dataset
      * @throws IOException
      */
-    private Dataset jsonld2dataset(String jsonld, Context jenaCtx) throws IOException {
+    private Dataset jsonld2dataset(String jsonld, Context jenaCtx, Lang lang) throws IOException {
         Dataset ds = DatasetFactory.create();
-
-        try (InputStream in = new ByteArrayInputStream(jsonld.getBytes(StandardCharsets.UTF_8))) {
-            RDFParser.create()
-                    .source(in)
-                    .errorHandler(ErrorHandlerFactory.errorHandlerNoLogging)
-                    .lang(Lang.JSONLD)
-                    .context(jenaCtx)
-                    .parse(ds.asDatasetGraph());
-        }
-
+        RDFParser.create()
+            .fromString(jsonld)
+            .errorHandler(ErrorHandlerFactory.errorHandlerNoLogging)
+            .lang(lang)
+            .context(jenaCtx)
+            .parse(ds.asDatasetGraph());
         return ds;
     }
 
     /**
      * Example data
      */
-    private String someSchemaDorOrgJsonld() {
+    private String someSchemaDotOrgJsonld() {
         return String.format("{\"@id\": \"_:b0\", \"@type\": \"Person\", \"name\": \"John Doe\", %s }", schemaOrgContext());
     }
 
     private String schemaOrgContext() {
-        return "\"@context\": \"http://schema.org/\"";
+        return "\"@context\": \"https://schema.org/\"";
     }
 
     // a subset of schema.org that can be used as @context for jsonld
     private String schemaOrgResolvedContext() {
-        return "{\"name\":{\"@id\":\"http://schema.org/name\"},\"Person\": {\"@id\": \"http://schema.org/Person\"}}";
-
+        return "{\"name\":{\"@id\":\"https://schema.org/name\"},\"Person\": {\"@id\": \"http://schema.org/Person\"}}";
     }
 
     private static Resource person1 = ResourceFactory.createResource("http://schema.org/Person");
@@ -138,6 +158,4 @@ public class TestJsonLDReader {
         assertTrue(m.contains(null, RDF.type, person1) || m.contains(null, RDF.type, person2));
         assertTrue(m.contains(null, name1, "John Doe") || m.contains(null, name2, "John Doe"));
     }
-
-
 }

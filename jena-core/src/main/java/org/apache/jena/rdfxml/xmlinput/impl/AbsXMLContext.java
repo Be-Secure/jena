@@ -18,27 +18,14 @@
 
 package org.apache.jena.rdfxml.xmlinput.impl;
 
-import java.util.Iterator ;
-import java.util.regex.Pattern ;
+import java.util.regex.Pattern;
 
-import org.apache.jena.iri.IRI ;
-import org.apache.jena.iri.IRIComponents ;
-import org.apache.jena.iri.Violation ;
-import org.apache.jena.iri.ViolationCodes ;
+import org.apache.jena.irix.IRIx;
 import org.apache.jena.rdfxml.xmlinput.ARPErrorNumbers ;
+import org.apache.jena.shared.JenaException;
 import org.xml.sax.SAXParseException ;
 
 public abstract class AbsXMLContext implements ARPErrorNumbers {
-
-    // protected static String truncateXMLBase(String rslt) {
-    // if (rslt == null)
-    // return null;
-    // int hash = rslt.indexOf('#');
-    // if (hash != -1) {
-    // return rslt.substring(0, hash);
-    // }
-    // return rslt;
-    // }
 
     protected final String lang;
 
@@ -46,13 +33,11 @@ public abstract class AbsXMLContext implements ARPErrorNumbers {
 
     final Taint baseTaint;
 
-    protected final IRI uri;
+    protected final IRIx uri;
 
     protected final AbsXMLContext document;
 
-    protected AbsXMLContext(boolean useDoc, AbsXMLContext document, IRI uri,
-            Taint baseT, String lang, Taint langT) {
-        // this.base=base;
+    protected AbsXMLContext(boolean useDoc, AbsXMLContext document, IRIx uri, Taint baseT, String lang, Taint langT) {
         this.lang = lang;
         langTaint = langT;
         baseTaint = baseT;
@@ -60,50 +45,35 @@ public abstract class AbsXMLContext implements ARPErrorNumbers {
         this.document = useDoc ? (document == null ? this : document) : null;
     }
 
-    protected static Taint initTaint(XMLHandler h, IRI base)
-            throws SAXParseException {
+    protected static Taint initTaint(XMLHandler h, IRIx base) throws SAXParseException {
         Taint rslt = new TaintImpl();
         checkURI(h, rslt, base);
         return rslt;
     }
 
-//    protected AbsXMLContext withBase(XMLHandler forErrors, String b)
-//            throws SAXParseException {
-//        TaintImpl taintB = new TaintImpl();
-//        IRI newB = resolveAsURI(forErrors, taintB, b, false);
-//        // TO  DO update MALFORMED_CONTEXT
-//        if (newB.isVeryBad())
-//            return new XMLBaselessContext(forErrors,
-//                    ERR_RESOLVING_AGAINST_MALFORMED_BASE, b);
-//        return new XMLContext(keepDocument(forErrors), document, newB
-//                .create(""), taintB, lang, langTaint);
-//    }
+    public AbsXMLContext withBase(XMLHandler forErrors, String baseURI) throws SAXParseException {
 
-    public AbsXMLContext withBase(XMLHandler forErrors, String b)
-            throws SAXParseException {
         TaintImpl taintB = new TaintImpl();
-        IRI newB = resolveAsURI(forErrors, taintB, b, false);
-        if (newB.isRelative())
-            return new XMLBaselessContext(forErrors,ERR_RESOLVING_AGAINST_RELATIVE_BASE, newB.create(""));
+        IRIx newBase = resolveAsURI(forErrors, taintB, baseURI, false);
 
-        if (newB.hasViolation(false))
-            return new XMLBaselessContext(forErrors,
-                    ERR_RESOLVING_AGAINST_MALFORMED_BASE, newB);
-        return new XMLContext(keepDocument(forErrors), document, newB
-                .create(""), taintB, lang, langTaint);
+        if ( newBase.isRelative())
+            return new XMLBaselessContext(forErrors,ERR_RESOLVING_AGAINST_RELATIVE_BASE, newBase);
+
+        if ( newBase.hasViolations() )
+            return new XMLBaselessContext(forErrors, ERR_RESOLVING_AGAINST_MALFORMED_BASE, newBase);
+
+        return new XMLContext(keepDocument(forErrors), document, newBase, taintB, lang, langTaint);
     }
 
     abstract boolean keepDocument(XMLHandler forErrors);
 
-    protected AbsXMLContext withLang(XMLHandler forErrors, String l)
-            throws SAXParseException {
-
+    protected AbsXMLContext withLang(XMLHandler forErrors, String l) throws SAXParseException {
         Taint taint = new TaintImpl();
         checkXMLLang(forErrors, taint, l);
         return clone(uri, baseTaint, l, taint);
     }
 
-    abstract AbsXMLContext clone(IRI base, Taint baseT, String l, Taint langT);
+    abstract AbsXMLContext clone(IRIx base, Taint baseT, String l, Taint langT);
 
     public String getLang(Taint taint) {
         if (langTaint.isTainted())
@@ -111,21 +81,14 @@ public abstract class AbsXMLContext implements ARPErrorNumbers {
         return lang;
     }
 
-    // protected RDFURIReference getURI(XMLHandler forErrors, Taint taintMe,
-    // String relUri) throws SAXParseException {
-    // baseUsed(forErrors, taintMe, relUri, null);
-    // if (baseTaint.isTainted())
-    // taintMe.taint();
-    // return uri;
-    // }
-    final IRI resolveAsURI(XMLHandler forErrors, Taint taintMe, String relUri)
+    final IRIx resolveAsURI(XMLHandler forErrors, Taint taintMe, String relUri)
             throws SAXParseException {
         return resolveAsURI(forErrors, taintMe, relUri, true);
     }
 
-    final IRI resolveAsURI(XMLHandler forErrors, Taint taintMe, String relUri,
-            boolean checkBaseUse) throws SAXParseException {
-        IRI rslt = uri.create(relUri);
+    final IRIx resolveAsURI(XMLHandler forErrors, Taint taintMe, String relUri, boolean checkBaseUse)
+            throws SAXParseException {
+        IRIx rslt = uri.resolve(relUri);
 
         if (checkBaseUse)
             checkBaseUse(forErrors, taintMe, relUri, rslt);
@@ -135,32 +98,44 @@ public abstract class AbsXMLContext implements ARPErrorNumbers {
         return rslt;
     }
 
-    abstract void checkBaseUse(XMLHandler forErrors, Taint taintMe,
-            String relUri, IRI rslt) throws SAXParseException;
+    abstract void checkBaseUse(XMLHandler forErrors, Taint taintMe, String relUri, IRIx rslt)
+            throws SAXParseException;
 
-    // abstract void baseUsed(XMLHandler forErrors, Taint taintMe, String
-    // relUri,
-    // String string) throws SAXParseException;
-
-    protected static void checkURI(XMLHandler forErrors, Taint taintMe, IRI rslt)
-            throws SAXParseException {
-        if (rslt.hasViolation(false)) {
-            Iterator<Violation> it = rslt.violations(false);
-            while (it.hasNext()) {
-                Violation irie = it.next();
-                // if (irie.getViolationCode() ==
-                // ViolationCodes.REQUIRED_COMPONENT_MISSING)
-                String msg = irie.getShortMessage();
-                if (irie.getViolationCode() == ViolationCodes.REQUIRED_COMPONENT_MISSING
-                        && irie.getComponent() == IRIComponents.SCHEME) {
-                    if (!forErrors.allowRelativeURIs())
-                        forErrors.warning(taintMe, WARN_RELATIVE_URI,
-                                "Relative URIs are not permitted in RDF: specifically <"+rslt.toString()+">");
-
-                } else
-                    forErrors.warning(taintMe, WARN_MALFORMED_URI, "Bad URI: " + msg);
+    protected static void checkURI(XMLHandler forErrors, Taint taintMe, IRIx rslt) throws SAXParseException {
+        try {
+            if ( rslt.isRelative() && !forErrors.allowRelativeURIs() ) {
+                forErrors.warning(taintMe, WARN_RELATIVE_URI,
+                                  "Relative URIs are not permitted in RDF: specifically <"+rslt.toString()+">");
             }
+        } catch (SAXParseException ex) {
+            throw new JenaException("SAXParseException: "+ex.getMessage());
         }
+
+        rslt.handleViolations((isError, msg) ->{
+            try {
+                forErrors.warning(taintMe, WARN_MALFORMED_URI, "Bad URI: " + msg);
+            } catch (SAXParseException ex) {
+                throw new JenaException("SAXParseException: "+ex.getMessage());
+            }
+        });
+
+//        if (rslt.hasViolation(false)) {
+//            Iterator<Violation> it = rslt.violations(false);
+//            while (it.hasNext()) {
+//                Violation irie = it.next();
+//                // if (irie.getViolationCode() ==
+//                // ViolationCodes.REQUIRED_COMPONENT_MISSING)
+//                String msg = irie.getShortMessage();
+//                if (irie.getViolationCode() == ViolationCodes.REQUIRED_COMPONENT_MISSING
+//                        && irie.getComponent() == IRIComponents.SCHEME) {
+//                    if (!forErrors.allowRelativeURIs())
+//                        forErrors.warning(taintMe, WARN_RELATIVE_URI,
+//                                "Relative URIs are not permitted in RDF: specifically <"+rslt.toString()+">");
+//
+//                } else
+//                    forErrors.warning(taintMe, WARN_MALFORMED_URI, "Bad URI: " + msg);
+//            }
+//        }
     }
 
     public String resolve(XMLHandler forErrors, Taint taintMe, String u)
@@ -169,7 +144,7 @@ public abstract class AbsXMLContext implements ARPErrorNumbers {
     }
 
     private static Pattern langPattern = Pattern.compile("[a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*") ;
-        
+
     /* This is just a light syntactic check of the language tag.
      * See JENA-827.
      * Jena, when parsing RDF/XML, used to check the syntax and against (an encoded copy of) the IANA registry.
@@ -180,7 +155,7 @@ public abstract class AbsXMLContext implements ARPErrorNumbers {
             return;
         if (newLang.equalsIgnoreCase("und") )
             arp.warning(taintMe, WARN_BAD_XMLLANG, "Bad language tag: "+newLang+" (not allowed)") ;
-        if ( ! langPattern.matcher(newLang).matches() ) 
+        if ( ! langPattern.matcher(newLang).matches() )
             arp.warning(taintMe, WARN_BAD_XMLLANG, "Bad language tag: "+newLang) ;
     }
 }

@@ -24,46 +24,42 @@
 
 package org.apache.jena.rdfxml.xmlinput.impl;
 
-import org.apache.jena.iri.IRI ;
+import org.apache.jena.irix.IRIx;
 import org.apache.jena.rdfxml.xmlinput.ARPErrorNumbers ;
 import org.xml.sax.SAXParseException ;
 
 /**
- * 
+ *
  * Both the baseURI and the lang may be tainted with errors. They should not be
  * accessed without providing a taint object to propagate such tainting.
  */
 public class XMLContext extends AbsXMLContext implements ARPErrorNumbers
 {
-    // final private String base;
-
     /**
      * Creates new XMLContext
-     * 
+     *
      * @throws SAXParseException
      */
     XMLContext(XMLHandler h, String base) throws SAXParseException {
-
-        this(h, h.iriFactory().create(base));
+        this(h, h.iriProvider().create(base));
     }
 
-    protected XMLContext(XMLHandler h, IRI uri, Taint baseT) {
+    protected XMLContext(XMLHandler h, IRIx uri, Taint baseT) {
         super(!h.ignoring(IGN_XMLBASE_SIGNIFICANT), null, uri, baseT, "",
                 new TaintImpl());
     }
 
-    private XMLContext(XMLHandler h, IRI baseMaybeWithFrag)
+    private XMLContext(XMLHandler h, IRIx baseMaybeWithFrag)
             throws SAXParseException {
-        this(h, baseMaybeWithFrag.create(""), baseMaybeWithFrag);
+        this(h, baseMaybeWithFrag.resolve(""), baseMaybeWithFrag);
     }
 
-    private XMLContext(XMLHandler h, IRI base,
-            IRI baseMaybeWithFrag) throws SAXParseException {
+    private XMLContext(XMLHandler h, IRIx base,
+            IRIx baseMaybeWithFrag) throws SAXParseException {
         this(h, base, initTaint(h, baseMaybeWithFrag));
     }
 
-    XMLContext(boolean b, AbsXMLContext document, IRI uri,
-            Taint baseT, String lang, Taint langT) {
+    XMLContext(boolean b, AbsXMLContext document, IRIx uri, Taint baseT, String lang, Taint langT) {
         super(b, document, uri, baseT, lang, langT);
     }
 
@@ -79,8 +75,7 @@ public class XMLContext extends AbsXMLContext implements ARPErrorNumbers
     }
 
     @Override
-    AbsXMLContext clone(IRI u, Taint baseT, String lng,
-            Taint langT) {
+    AbsXMLContext clone(IRIx u, Taint baseT, String lng, Taint langT) {
         return new XMLContext(true, document, u, baseT, lng, langT);
     }
 
@@ -90,7 +85,7 @@ public class XMLContext extends AbsXMLContext implements ARPErrorNumbers
         if (document == null || relUri.equals(resolvedURI))
             return;
         if (!isSameAsDocument()) {
-            String other = document.uri.create(relUri).toString();
+            String other = document.uri.resolve(relUri).toString();
             if (!other.equals(resolvedURI)) {
                 forErrors.warning(taintMe, IGN_XMLBASE_SIGNIFICANT,
                         "Use of attribute xml:base changes interpretation of relative URI: \""
@@ -100,8 +95,7 @@ public class XMLContext extends AbsXMLContext implements ARPErrorNumbers
     }
 
     @Override
-    void checkBaseUse(XMLHandler forErrors, Taint taintMe, String relUri,
-            IRI rslt) throws SAXParseException {
+    void checkBaseUse(XMLHandler forErrors, Taint taintMe, String relUri, IRIx rslt) throws SAXParseException {
         if (document == null)
             return;
 
@@ -109,7 +103,7 @@ public class XMLContext extends AbsXMLContext implements ARPErrorNumbers
         if (relUri.equals(resolvedURI))
             return;
         if (!isSameAsDocument()) {
-            String other = document.uri.create(relUri).toString();
+            String other = document.uri.resolve(relUri).toString();
             if (!other.equals(resolvedURI)) {
                 forErrors.warning(taintMe, IGN_XMLBASE_SIGNIFICANT,
                         "Use of attribute xml:base changes interpretation of relative URI: \""
@@ -118,5 +112,4 @@ public class XMLContext extends AbsXMLContext implements ARPErrorNumbers
         }
 
     }
-
 }
