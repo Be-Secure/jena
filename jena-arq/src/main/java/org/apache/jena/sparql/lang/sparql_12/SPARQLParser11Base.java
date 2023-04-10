@@ -16,17 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.jena.sparql.function.scripting;
+package org.apache.jena.sparql.lang.sparql_12;
+import org.apache.jena.sparql.lang.SPARQLParserBase ;
 
-import org.apache.jena.sparql.SystemARQ;
-import org.apache.jena.sparql.util.Symbol;
-
-public class LanguageSymbols {
-    public static Symbol scriptLibrary(String lang) {
-        return SystemARQ.allocSymbol(lang + "-library");
-    }
-
-    public static Symbol scriptFunctions(String lang) {
-        return SystemARQ.allocSymbol(lang + "-functions");
-    }
+class SPARQLParser12Base
+        extends SPARQLParserBase
+        implements SPARQLParser12Constants
+{
 }

@@ -1,5 +1,6 @@
 /*
- * or more contributor license agreements.  See the NOTICE fil
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
@@ -26,10 +27,9 @@ import org.apache.jena.atlas.logging.LogCtl;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.riot.*;
-import org.apache.jena.sparql.util.Context;
 
 /** Example of setting properties for RDF/XML writer via RIOT */
-public class ExRIOT_RDFXML_WriteProperties {
+public class ExRIOT_RDFXML_WriterProperties {
     static { LogCtl.setLogging(); }
 
     public static void main(String... args) {
@@ -37,44 +37,33 @@ public class ExRIOT_RDFXML_WriteProperties {
         String x = StrUtils.strjoinNL
             ("PREFIX : <http://example.org/>"
             ,":s :p :o ."
+            ,":s a :T ."
             );
         Model model = ModelFactory.createDefaultModel();
         RDFDataMgr.read(model, new StringReader(x), null, Lang.TURTLE);
 
-        // Write, default settings.
-        writePlain(model);
-        System.out.println();
-
         // Write, with properties
         writeProperties(model);
-    }
-
-    /** Write in plain, not pretty ("abbrev") format. */
-    private static void writePlain(Model model) {
-        System.out.println("**** RDFXML_PLAIN");
-        RDFDataMgr.write(System.out, model, RDFFormat.RDFXML_PLAIN);
-        System.out.println();
     }
 
     /** Write with properties */
     public static void writeProperties(Model model) {
         System.out.println("**** RDFXML_PLAIN+properties");
         System.out.println("**** Adds XML declaration");
+        System.out.println();
 
         // Properties to be set.
-        // See https://jena.apache.org/documentation/io/rdfxml_howto.html#advanced-rdfxml-output
+        // See
+        //   https://jena.apache.org/documentation/io/rdfxml-io.html
+        //   https://jena.apache.org/documentation/io/rdfxml-output.html
         // for details of properties.
         Map<String, Object> properties = new HashMap<>() ;
         properties.put("showXmlDeclaration", "true");
 
-        // Put a properties object into the Context.
-        Context cxt = new Context();
-        cxt.set(SysRIOT.sysRdfWriterProperties, properties);
-
         RDFWriter.create()
             .base("http://example.org/")
-            .format(RDFFormat.RDFXML_ABBREV)
-            .context(cxt)
+            .format(RDFFormat.RDFXML_PLAIN)
+            .set(SysRIOT.sysRdfWriterProperties, properties)
             .source(model)
             .output(System.out);
     }

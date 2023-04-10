@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 
-import org.apache.jena.rdfxml.xmlinput0.impl.RDFXMLParser;
+import org.apache.jena.rdfxml.xmlinput0.impl.RDFXMLParser0;
 import org.xml.sax.ErrorHandler;
 import org.xml.sax.InputSource;
 import org.xml.sax.Locator;
@@ -67,13 +67,15 @@ import org.xml.sax.SAXException;
 public class ARP0 implements ARPConfig
 {
 
-    final private RDFXMLParser arpf;
+    final private RDFXMLParser0 arpf;
 
-/** Creates a new RDF Parser.
- * Can parse one file at a time.
- */
+    /** Creates a new RDF Parser.
+     * Can parse one file at a time.
+     * @deprecated Direct access to the RDF/XML parser is planned for removal. Please contact the Jena development community for details.
+     */
+    @Deprecated
     public ARP0()  {
-        arpf =  RDFXMLParser.create();
+        arpf =  RDFXMLParser0.create();
     }
     /**
  * When parsing a file, this returns a Locator giving the
